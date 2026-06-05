@@ -55,7 +55,7 @@ but **structurally impossible on GNOME-Wayland**, for *any* framework.
 |---|---|---|
 | Core logic | **Rust crate `voz-core`** | One place for audio + Whisper + refine + storage; reusable by any frontend |
 | Transcription | **whisper.cpp via `whisper-rs`** (Codeberg) | Static link, no Python, CPU + Vulkan/CUDA, MIT/MIT |
-| Audio | **`cpal` + `rubato`** (+ optional Silero VAD) | Dual-source: mic **and** system-output **monitor** (PipeWire loopback) → 16 kHz mono f32 |
+| Audio | **PipeWire `pw-record`** (+ optional Silero VAD) | Dual-source: mic **and** system-output **monitor** (loopback) → 16 kHz mono f32. (Chosen over cpal: its ALSA backend doesn't reliably expose PipeWire monitor sources.) |
 | Refine | pluggable: **Claude Code CLI / Codex CLI / Ollama / Claude API / None** | Reuses installed agentic CLIs — no extra key |
 | Frontend (v1) | **Tauri v2** (Rust backend + web UI) | The confirmed mockups are HTML/CSS → they become the UI 1:1; one cross-desktop codebase; modern look |
 | Tray (GNOME) | StatusNotifierItem via `tray-icon` (needs AppIndicator ext, preinstalled on Pop!_OS) | Only supported tray path on GNOME |

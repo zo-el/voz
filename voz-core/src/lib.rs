@@ -10,6 +10,8 @@
 //! See `docs/ARCHITECTURE.md` for the design this implements.
 
 pub mod audio;
+#[cfg(feature = "audio")]
+pub mod capture;
 pub mod command;
 pub mod config;
 pub mod event;

@@ -12,10 +12,10 @@ workspace = true
 
 [features]
 default = []
-# Native backends, enabled in later milestones (need system -dev packages):
-#   audio   -> cpal + rubato + pipewire (libasound2-dev, libpipewire-0.3-dev)
+# Native backends, enabled per milestone:
+#   audio   -> capture via PipeWire `pw-record` (runtime) + hound for WAV writing
 #   whisper -> whisper-rs / whisper.cpp (cmake, clang; CUDA toolkit for `cuda`)
-audio = []
+audio = ["dep:hound"]
 whisper = []
 cuda = ["whisper"]
 vulkan = ["whisper"]
@@ -24,5 +24,6 @@ vulkan = ["whisper"]
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 thiserror = "2"
+hound = { version = "3", optional = true }
 
 [dev-dependencies]
