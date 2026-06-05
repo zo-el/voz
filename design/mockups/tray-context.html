@@ -1,0 +1,90 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+  body.desk {
+    margin:0; min-height:100vh;
+    background:
+      radial-gradient(1100px 600px at 78% 0%, #353b1c 0%, transparent 55%),
+      radial-gradient(900px 700px at 10% 100%, #1d2913 0%, transparent 55%),
+      linear-gradient(160deg,#080a06,#0d0f09);
+    font-family: var(--sans);
+  }
+  .topbar {
+    height:34px; background:rgba(10,11,15,.82); backdrop-filter: blur(12px);
+    border-bottom:1px solid rgba(255,255,255,.06);
+    display:flex; align-items:center; padding:0 14px; gap:18px;
+    color:#cfd3db; font-size:12.5px; font-weight:600;
+    position:relative; z-index:5;
+  }
+  .topbar .activities { color:#eceef2; }
+  .topbar .clock { position:absolute; left:50%; transform:translateX(-50%); font-weight:600; color:#eceef2; }
+  .topbar .tray { margin-left:auto; display:flex; align-items:center; gap:6px; }
+  .topbar .tray .ti { width:26px; height:26px; border-radius:7px; display:grid; place-items:center; color:#aab0bd; }
+  .topbar .tray .ti svg{width:15px;height:15px;}
+  .topbar .tray .ti.active { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; box-shadow:0 3px 12px rgba(138,154,78,.6); }
+  .dropwrap { position:absolute; top:40px; right:14px; }
+  /* place panel directly under the active tray icon */
+  .desk .panel { width:400px; }
+  .label-note { position:absolute; left:40px; top:120px; max-width:330px; color:#9aa0ad; font-size:13px; line-height:1.6; }
+  .label-note b{color:#eceef2;}
+  .label-note .pin{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-2);margin-right:8px;vertical-align:middle;}
+</style>
+</head>
+<body class="desk">
+  <div class="topbar">
+    <span class="activities">Activities</span>
+    <span class="clock">Fri 14:07</span>
+    <div class="tray">
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12.5a7 7 0 0 1 14 0M8.5 15.5a3.5 3.5 0 0 1 7 0M2 9a11 11 0 0 1 20 0"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg></div>
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 18l4-12 4 8 2-4 4 8"/></svg></div>
+      <div class="ti active trayicon" title="Voz — recording" style="position:relative"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg><span class="badge rec"></span></div>
+      <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+    </div>
+  </div>
+
+  <div class="label-note">
+    <p><span class="pin"></span><b>The tray icon is the whole app.</b></p>
+    <p style="margin-top:10px">Click it (or press the global hotkey) and the recorder drops down, anchored under the icon. No separate window, no dock entry.</p>
+    <p style="margin-top:10px">The icon also <b>shows what Voz is doing</b> even when the panel is closed: a <span style="color:#d9614a;font-weight:600">red dot</span> while recording, an <span style="color:#b3c267;font-weight:600">olive dot</span> while a note transcribes/refines in the background.</p>
+  </div>
+
+  <div class="dropwrap">
+    <div class="panel tethered">
+      <div class="hdr">
+        <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <div class="name">Voz</div>
+        <div class="spacer"></div>
+        <div class="statepill live"><span class="dot"></span> Recording</div>
+        <div class="iconbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+      </div>
+      <div class="body">
+        <div class="srcbar">
+          <span class="cap">Source</span>
+          <div class="spacer"></div>
+          <div class="srcpill">
+            <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg><span>Mic</span></button>
+            <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg><span>System</span></button>
+            <button class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/></svg><span>Both</span></button>
+          </div>
+        </div>
+        <div class="stage-rec">
+          <div class="timer">00:23</div>
+          <div class="wave">
+            <i style="height:8px"></i><i style="height:14px"></i><i style="height:22px"></i><i style="height:12px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:38px"></i><i style="height:24px"></i><i style="height:16px"></i><i style="height:28px"></i><i style="height:42px"></i><i style="height:20px"></i><i style="height:34px"></i><i style="height:14px"></i><i style="height:26px"></i><i style="height:40px"></i><i style="height:18px"></i><i style="height:30px"></i><i style="height:22px"></i><i style="height:12px"></i><i style="height:36px"></i><i style="height:20px"></i><i style="height:28px"></i><i style="height:16px"></i><i style="height:32px"></i><i style="height:24px"></i><i style="height:14px"></i><i style="height:20px"></i><i style="height:10px"></i><i style="height:8px"></i>
+          </div>
+          <div class="controls">
+            <div class="sidebtn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></div>
+            <button class="recbtn recording"><span class="stop"></span></button>
+            <div class="sidebtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+          </div>
+          <div class="hint-line"><b>Pause</b> · <b>Stop</b> to transcribe · <b>✕</b> discard</div>
+        </div>
+      </div>
+      <div class="nav">
+        <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
+        <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
+        <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
+      </div>
+    </div>
+  </div>
+</body></html>

@@ -1,0 +1,27 @@
+[package]
+name = "voz-app"
+description = "Voz desktop app (Tauri shell over voz-core)."
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "Apache-2.0"
+authors = ["Joel Ulahanna <joelulahanna@gmail.com>"]
+
+# NOTE: not a workspace member yet — needs system deps (see ../../BUILD.md).
+# Wired up across milestones M1–M5.
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+voz-core = { path = "../../voz-core", features = ["audio", "whisper"] }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+
+[features]
+# Forward GPU backends to voz-core/whisper.cpp.
+cuda = ["voz-core/cuda"]
+vulkan = ["voz-core/vulkan"]

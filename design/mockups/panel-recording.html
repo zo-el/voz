@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="style.css"></head>
+<body class="stage">
+<div class="panel tethered">
+
+  <div class="hdr">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="name">Voz</div>
+    <div class="spacer"></div>
+    <div class="statepill live"><span class="dot"></span> Recording</div>
+  </div>
+
+  <div class="body">
+    <!-- source is locked while recording; shown compactly as status -->
+    <div class="srcbar">
+      <span class="cap">Source</span>
+      <div class="spacer"></div>
+      <div class="srcpill">
+        <button title="Microphone only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg><span>Mic</span></button>
+        <button title="System audio only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg><span>System</span></button>
+        <button class="on" title="Mic + system (meeting)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/></svg><span>Both</span></button>
+      </div>
+    </div>
+
+    <div class="stage-rec">
+      <div class="timer">00:23</div>
+      <div class="wave">
+        <i style="height:8px"></i><i style="height:14px"></i><i style="height:22px"></i><i style="height:12px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:38px"></i><i style="height:24px"></i><i style="height:16px"></i><i style="height:28px"></i><i style="height:42px"></i><i style="height:20px"></i><i style="height:34px"></i><i style="height:14px"></i><i style="height:26px"></i><i style="height:40px"></i><i style="height:18px"></i><i style="height:30px"></i><i style="height:22px"></i><i style="height:12px"></i><i style="height:36px"></i><i style="height:20px"></i><i style="height:28px"></i><i style="height:16px"></i><i style="height:32px"></i><i style="height:24px"></i><i style="height:14px"></i><i style="height:20px"></i><i style="height:10px"></i><i style="height:8px"></i>
+      </div>
+
+      <div class="controls">
+        <div class="sidebtn" title="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></div>
+        <button class="recbtn recording" title="Stop → transcribes in the background"><span class="stop"></span></button>
+        <div class="sidebtn" title="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+      </div>
+
+      <div class="hint-line"><b>Stop</b> hands off to the background — you stay free to record</div>
+    </div>
+
+    <!-- the earlier note keeps processing while THIS one records -->
+    <div class="procbar" title="Open in History">
+      <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" stroke-linecap="round"/></svg>
+      <div class="pt"><b>Transcribing</b> · Standup notes</div>
+      <div class="go">History <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
+  </div>
+</div>
+</body></html>

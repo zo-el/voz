@@ -1,0 +1,28 @@
+[package]
+name = "voz-core"
+description = "Core engine for Voz: capture, transcribe, attribute, refine, store."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# Native backends, enabled in later milestones (need system -dev packages):
+#   audio   -> cpal + rubato + pipewire (libasound2-dev, libpipewire-0.3-dev)
+#   whisper -> whisper-rs / whisper.cpp (cmake, clang; CUDA toolkit for `cuda`)
+audio = []
+whisper = []
+cuda = ["whisper"]
+vulkan = ["whisper"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+thiserror = "2"
+
+[dev-dependencies]

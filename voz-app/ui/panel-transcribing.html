@@ -1,0 +1,52 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="style.css"></head>
+<body class="stage">
+<div class="panel tethered">
+
+  <div class="hdr">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="name">Voz</div>
+    <div class="spacer"></div>
+    <div class="statepill"><span class="dot" style="background:var(--accent-2)"></span> Refining</div>
+  </div>
+
+  <div class="body">
+    <!-- opened from History; processing continues in the background -->
+    <div class="subhdr" style="margin-bottom:13px">
+      <div class="back" title="Back to History"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div><h3 style="font-size:13px">Planning sync</h3><div class="sub">Meeting · 2 voices · processing in background</div></div>
+    </div>
+    <!-- stage 1: raw transcript, local whisper (done) -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ok)"><path d="M20 6 9 17l-5-5"/></svg> Raw transcript <span class="tag local">whisper · large-v3-turbo</span></div>
+      <div class="transcript">
+        <span class="turn"><span class="spk me">Me</span>so the plan for next week is to ship the settings panel first and then wire up the local model picker</span>
+        <span class="turn"><span class="spk them">Alex</span>sounds good can we leave the diarization piece for later i think it's lower priority</span>
+      </div>
+    </div>
+
+    <!-- stage 2: refined doc in progress -->
+    <div class="card" style="border-color:rgba(138,154,78,.35)">
+      <div class="label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent-2)"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg> Refining <span class="tag refine">Claude Code</span></div>
+      <div class="transcript">
+        <h5>Summary</h5>
+        Next-week plan: ship the settings panel, then wire up the local model picker. Diarization is deprioritised.
+        <h5>Action items</h5>
+        <ul><li>Ship the settings panel first</li><li>Wire up the local model picker<span class="cursor"></span></li></ul>
+      </div>
+      <div class="prog" style="margin-top:12px"><i style="width:62%"></i></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy raw now</button>
+    </div>
+    <div class="hint-line" style="margin-top:10px">Finishes on its own — switch to <b>Record</b> anytime, you'll get a notification when it's ready</div>
+  </div>
+
+  <div class="nav">
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
+    <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
+  </div>
+</div>
+</body></html>

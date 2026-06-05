@@ -1,0 +1,27 @@
+# cargo-deny policy (supply-chain gate; see docs/SECURITY.md §2.7)
+[advisories]
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Allow permissive licenses compatible with Apache-2.0 distribution.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    "MPL-2.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

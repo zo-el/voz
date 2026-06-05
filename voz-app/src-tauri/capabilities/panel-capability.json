@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "panel-capability",
+  "description": "Minimal allowlist for the panel window — only what the thin UI needs (see docs/SECURITY.md §2.1). No shell, fs, or http plugin is exposed to the webview; privileged work goes through typed commands in Rust.",
+  "windows": ["panel"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:event:default",
+    "notification:default"
+  ]
+}

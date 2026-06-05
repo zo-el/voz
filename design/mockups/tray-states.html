@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+  body.states { background:
+    radial-gradient(900px 500px at 50% -10%, #2c3318 0%, transparent 55%), #07080b;
+    display:flex; align-items:center; justify-content:center; min-height:100vh; padding:48px; }
+  .wrap { text-align:center; }
+  .wrap > h2 { color:var(--text); font-size:15px; font-weight:700; margin-bottom:4px; }
+  .wrap > p { color:var(--text-3); font-size:12px; margin-bottom:30px; }
+  .ico-grad { background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 3px 12px var(--accent-glow); }
+</style></head>
+<body class="states">
+  <div class="wrap">
+    <h2>Tray icon state</h2>
+    <p>What the panel-closed tray icon tells you at a glance</p>
+    <div class="traystrip">
+      <div class="traydemo">
+        <div class="bar"><div class="trayicon"><div class="ico ico-grad" style="display:grid;place-items:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div></div></div>
+        <div class="lbl">Idle<small>ready</small></div>
+      </div>
+      <div class="traydemo">
+        <div class="bar"><div class="trayicon" style="position:relative"><div class="ico ico-grad" style="display:grid;place-items:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div><span class="badge rec"></span></div></div>
+        <div class="lbl" style="color:#e8978a">Recording<small>red dot</small></div>
+      </div>
+      <div class="traydemo">
+        <div class="bar"><div class="trayicon" style="position:relative"><div class="ico ico-grad" style="display:grid;place-items:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div><span class="badge proc"></span></div></div>
+        <div class="lbl" style="color:var(--accent-2)">Processing<small>olive dot</small></div>
+      </div>
+    </div>
+  </div>
+</body></html>

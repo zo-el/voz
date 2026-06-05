@@ -1,0 +1,102 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="style.css"></head>
+<body class="stage">
+<div class="panel tethered">
+
+  <div class="hdr">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="name">Voz</div>
+    <div class="spacer"></div>
+    <div class="statepill"><span class="dot"></span> Ready</div>
+  </div>
+
+  <div class="body" style="max-height:470px;overflow:auto">
+    <div class="subhdr">
+      <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <h3>Settings</h3>
+      <div class="spacer"></div>
+      <div class="seg"><span class="on">General</span><span>Engine</span></div>
+    </div>
+
+    <!-- save location -->
+    <div class="set-group">
+      <h4>Files</h4>
+      <div class="row single">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+        <div class="txt"><div class="t">Save location</div><div class="s mono">~/Obsidian/Vault/Voz</div></div>
+        <div class="ctrl-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Change</div>
+      </div>
+    </div>
+
+    <div class="set-group">
+      <div class="stack">
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+          <div class="txt"><div class="t">Output</div><div class="s">Raw + Refined as two linked Markdown notes</div></div>
+          <div class="seg"><span class="on">MD</span><span>TXT</span><span>SRT</span></div>
+        </div>
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div class="txt"><div class="t">Obsidian-friendly</div><div class="s">YAML front-matter + <span style="font-family:var(--mono)">[[wikilink]]</span> from refined → raw</div></div>
+          <div class="toggle on"></div>
+        </div>
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M5 12a7 7 0 0 1 14 0M5 12a7 7 0 0 0 14 0"/></svg></div>
+          <div class="txt"><div class="t">Keep audio file</div><div class="s">Store the recording next to the notes</div></div>
+          <div class="toggle on"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- audio sources + hotkey -->
+    <div class="set-group">
+      <h4>Audio sources</h4>
+      <div class="stack">
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg></div>
+          <div class="txt"><div class="t">Microphone</div><div class="s">Built-in Microphone (PipeWire)</div></div>
+          <div class="ctrl-sm">Change<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+        </div>
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg></div>
+          <div class="txt"><div class="t">System audio (loopback)</div><div class="s">Records the meeting you hear — never connects to it</div></div>
+          <div class="toggle on"></div>
+        </div>
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/></svg></div>
+          <div class="txt"><div class="t">Default source</div><div class="s">What a new recording captures</div></div>
+          <div class="seg"><span>Mic</span><span>System</span><span class="on">Both</span></div>
+        </div>
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M8 14h8"/></svg></div>
+          <div class="txt"><div class="t">Record hotkey</div><div class="s">Global, push-to-talk or toggle</div></div>
+          <div class="ctrl-sm" style="font-family:var(--mono)">Ctrl Super Space</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- app -->
+    <div class="set-group" style="margin-bottom:4px">
+      <h4>App</h4>
+      <div class="stack">
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3"/></svg></div>
+          <div class="txt"><div class="t">Theme</div><div class="s">Dark olive · light theme coming later</div></div>
+          <div class="seg"><span class="on">Dark</span><span>Light</span></div>
+        </div>
+        <div class="row" style="border-radius:var(--radius-sm)">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg></div>
+          <div class="txt"><div class="t">Launch on login</div><div class="s">Start in tray when you sign in</div></div>
+          <div class="toggle on"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
+    <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
+  </div>
+</div>
+</body></html>

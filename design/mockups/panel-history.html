@@ -1,0 +1,81 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="style.css"></head>
+<body class="stage">
+<div class="panel tethered">
+
+  <div class="hdr">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="name">Voz</div>
+    <div class="spacer"></div>
+    <div class="statepill"><span class="dot" style="background:var(--accent-2)"></span> 2 processing</div>
+  </div>
+
+  <div class="body" style="max-height:470px;overflow:auto">
+    <div class="subhdr">
+      <h3>History</h3>
+      <div class="spacer"></div>
+      <div class="ctrl-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Open folder</div>
+    </div>
+
+    <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Search transcripts…</div>
+
+    <div class="hist">
+      <!-- live: processing in the background (you can record meanwhile) -->
+      <div class="group-label">Processing</div>
+      <div class="hitem live">
+        <div class="when">now</div>
+        <div class="h-body">
+          <div class="stat"><svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" stroke-linecap="round"/></svg> Refining · Claude Code</div>
+          <div class="h-t">Planning sync — meeting · 2 voices</div>
+          <div class="miniprog"><i style="width:72%"></i></div>
+        </div>
+      </div>
+      <div class="hitem live">
+        <div class="when">now</div>
+        <div class="h-body">
+          <div class="stat"><svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" stroke-linecap="round"/></svg> Transcribing · whisper turbo</div>
+          <div class="h-t">Standup notes — meeting · 4 voices</div>
+          <div class="miniprog"><i style="width:34%"></i></div>
+        </div>
+      </div>
+
+      <!-- completed notes -->
+      <div class="group-label">Today</div>
+      <div class="hitem">
+        <div class="when">11:42</div>
+        <div class="h-body">
+          <div class="h-t">Reminder to follow up with the design review and double-check the Wayland positioning behaviour on COSMIC before the demo.</div>
+          <div class="h-m"><span><b>Mic</b></span><span>0:48 · 102w</span><span>Local LLM</span></div>
+        </div>
+      </div>
+      <div class="hitem">
+        <div class="when">09:15</div>
+        <div class="h-body">
+          <div class="h-t">Kickoff — frontend is unblocked; backend API slips to Thursday; agreed to cut the export feature from v1 scope.</div>
+          <div class="h-m"><span><b>Meeting</b></span><span>41:18 · 4 voices</span><span>Claude Code</span></div>
+        </div>
+      </div>
+      <div class="hitem">
+        <div class="when">Yest</div>
+        <div class="h-body">
+          <div class="h-t">Grocery list — oat milk, coffee beans, the good olive oil, and check if the pharmacy order is ready for pickup.</div>
+          <div class="h-m"><span><b>Mic</b></span><span>0:19 · 38w</span><span>Raw only</span></div>
+        </div>
+      </div>
+      <div class="hitem">
+        <div class="when">Yest</div>
+        <div class="h-body">
+          <div class="h-t">Quick voice memo about the architecture: keep the core Rust crate desktop-agnostic so the COSMIC applet and the GNOME tray app can share it.</div>
+          <div class="h-m"><span><b>Mic</b></span><span>1:12 · 156w</span><span>Claude Code</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
+    <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
+  </div>
+</div>
+</body></html>

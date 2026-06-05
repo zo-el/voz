@@ -1,0 +1,14 @@
+# node / playwright
+node_modules/
+
+# rust
+/target/
+**/target/
+**/*.rs.bk
+
+# os
+.DS_Store
+
+# keep the rendered mockups in git so the design is reviewable without a build,
+# but ignore any scratch renders
+design/out/_contact-sheet.png

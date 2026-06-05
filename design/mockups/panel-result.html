@@ -1,0 +1,52 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="style.css"></head>
+<body class="stage">
+<div class="panel tethered">
+
+  <div class="hdr">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="name">Voz</div>
+    <div class="spacer"></div>
+    <div class="statepill"><span class="dot" style="background:var(--ok)"></span> Saved</div>
+  </div>
+
+  <div class="body">
+    <div class="subhdr" style="margin-bottom:13px">
+      <div class="back" title="Back to History"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div><h3 style="font-size:13px">Planning sync</h3><div class="sub">Meeting · 2 voices · 23:04</div></div>
+    </div>
+    <!-- toggle between raw transcript and refined doc -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div class="seg"><span>Raw</span><span class="on">Refined</span></div>
+      <div class="spacer" style="flex:1"></div>
+      <div class="statepill" style="font-size:10px">1,240 words</div>
+    </div>
+
+    <div class="card" style="min-height:150px">
+      <div class="label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent-2)"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg> Refined note <span class="tag refine">Claude Code</span></div>
+      <div class="transcript">
+        <h5>Summary</h5>
+        Reviewed next-week priorities. Agreed to ship the settings panel first, then wire up the local model picker; diarization is deprioritised for now.
+        <h5>Decisions</h5>
+        <ul><li>Settings panel ships before the model picker</li><li>Diarization deferred — revisit after launch</li></ul>
+        <h5>Action items</h5>
+        <ul><li><b>Me</b> — build the settings panel</li><li><b>Alex</b> — scope the model-picker work</li></ul>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>Open in Obsidian</button>
+      <button class="btn ghost" title="Re-refine with a different style"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6M21 12A9 9 0 0 0 6 5.3L3 8"/><path d="M21 22v-6h-6M3 12a9 9 0 0 0 15 6.7l3-2.7"/></svg></button>
+      <button class="btn ghost" title="More"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+    </div>
+    <div class="hint-line" style="margin-top:10px">Saved 2 linked notes to <span class="kbdtag">~/Obsidian/Vault/Voz/</span></div>
+  </div>
+
+  <div class="nav">
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
+    <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
+    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
+  </div>
+</div>
+</body></html>
