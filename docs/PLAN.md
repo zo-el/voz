@@ -1,7 +1,17 @@
 # Build plan — Voz
 
-Status: **planning — design refinement in progress.** Nothing in `voz-core` or the
-app is built yet; this repo holds research, architecture, and the design mockups.
+Status: **implementation underway — M0–M5b done & verified, M6–M7 in progress.**
+
+Done (each committed on `develop`, clippy `-D warnings` clean, fmt clean):
+- **M0** scaffold + tested `voz-core` · **M1** dual-source capture (pw-record;
+  verified live) · **M2** whisper.cpp transcription (verified on jfk.wav) ·
+  **M3** refine backends (Claude Code verified end-to-end) · **M4** two linked
+  notes + WAV + SQLite history · **M5a** engine (record→bg job→save→index;
+  verified live) · **M5b** Tauri app + tray + SPA (verified running on X11).
+- 57 `voz-core` tests; the full local pipeline works with real audio/whisper/
+  Claude Code/files.
+- **In progress:** M6 packaging (.deb/AppImage), M7 final hardening (more security
+  tests, accessibility, CI slow lane, manual QA matrix).
 
 **Decisions locked (2026-06-05):**
 - **Name:** Voz.

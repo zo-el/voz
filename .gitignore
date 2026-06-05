@@ -6,6 +6,9 @@ node_modules/
 **/target/
 **/*.rs.bk
 
+# tauri generated
+voz-app/src-tauri/gen/schemas/
+
 # os
 .DS_Store
 
