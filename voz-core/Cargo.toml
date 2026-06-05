@@ -16,14 +16,17 @@ default = []
 #   audio   -> capture via PipeWire `pw-record` (runtime) + hound for WAV writing
 #   whisper -> whisper-rs / whisper.cpp (cmake, clang; CUDA toolkit for `cuda`)
 audio = ["dep:hound"]
-whisper = []
-cuda = ["whisper"]
-vulkan = ["whisper"]
+whisper = ["dep:whisper-rs", "dep:sha2", "dep:ureq"]
+cuda = ["whisper", "whisper-rs/cuda"]
+vulkan = ["whisper", "whisper-rs/vulkan"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 thiserror = "2"
 hound = { version = "3", optional = true }
+whisper-rs = { version = "0.16.0", optional = true }
+sha2 = { version = "0.10.9", optional = true }
+ureq = { version = "2", optional = true }
 
 [dev-dependencies]

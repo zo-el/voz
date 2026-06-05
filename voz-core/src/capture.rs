@@ -11,7 +11,9 @@
 //! Why `pw-record` over cpal here: cpal's ALSA backend does not reliably expose
 //! PipeWire monitor sources, which are exactly what local meeting capture needs.
 
-use crate::audio::{monitor_name_for_sink, pcm_f32le_to_samples, rms, Level};
+use crate::audio::{
+    downmix_to_mono, monitor_name_for_sink, pcm_f32le_to_samples, resample_mono, rms, Level,
+};
 use crate::model::Source;
 use crate::pipeline::CapturedAudio;
 use std::io::Read;
@@ -209,6 +211,34 @@ pub fn write_wav_16k_mono(path: &std::path::Path, samples: &[f32]) -> crate::Res
         .finalize()
         .map_err(|e| crate::Error::Storage(e.to_string()))?;
     Ok(())
+}
+
+/// Read any WAV file and return 16 kHz mono f32 samples (for file import / tests).
+///
+/// # Errors
+/// Returns [`crate::Error::Storage`] if the file can't be read.
+pub fn read_wav_16k_mono(path: &std::path::Path) -> crate::Result<Vec<f32>> {
+    let mut reader =
+        hound::WavReader::open(path).map_err(|e| crate::Error::Storage(e.to_string()))?;
+    let spec = reader.spec();
+    let raw: Vec<f32> = match (spec.sample_format, spec.bits_per_sample) {
+        (hound::SampleFormat::Float, _) => {
+            reader.samples::<f32>().map(|s| s.unwrap_or(0.0)).collect()
+        }
+        (hound::SampleFormat::Int, 16) => reader
+            .samples::<i16>()
+            .map(|s| f32::from(s.unwrap_or(0)) / 32768.0)
+            .collect(),
+        (hound::SampleFormat::Int, bits) => {
+            let scale = f64::from(1u32 << (bits - 1));
+            reader
+                .samples::<i32>()
+                .map(|s| (f64::from(s.unwrap_or(0)) / scale) as f32)
+                .collect()
+        }
+    };
+    let mono = downmix_to_mono(&raw, spec.channels as usize);
+    Ok(resample_mono(&mono, spec.sample_rate, 16_000))
 }
 
 #[cfg(test)]

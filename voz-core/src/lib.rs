@@ -17,11 +17,15 @@ pub mod config;
 pub mod event;
 pub mod jobs;
 pub mod model;
+#[cfg(feature = "whisper")]
+pub mod models;
 pub mod pipeline;
 pub mod recorder;
 pub mod refine;
 pub mod store;
 pub mod transcribe;
+#[cfg(feature = "whisper")]
+pub mod whisper;
 
 pub use command::Command;
 pub use config::Settings;
