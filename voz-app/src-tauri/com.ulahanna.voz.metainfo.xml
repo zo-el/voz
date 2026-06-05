@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata (Flathub-ready for a future public release). -->
+<component type="desktop-application">
+  <id>com.ulahanna.voz</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Voz</name>
+  <summary>Local recorder + transcriber</summary>
+  <description>
+    <p>
+      Voz lives in the system tray and records your microphone and/or the system
+      audio you hear — so it captures meetings locally without ever joining them —
+      transcribes on-device with Whisper, and turns each recording into two linked
+      Obsidian-friendly notes: a verbatim Raw transcript and a Refined note. The
+      refine step runs through an LLM you choose (Claude Code / Codex CLI, a local
+      model, or the Claude API). Everything stays on your machine.
+    </p>
+  </description>
+  <categories>
+    <category>Utility</category>
+    <category>AudioVideo</category>
+  </categories>
+  <keywords>
+    <keyword>transcription</keyword>
+    <keyword>whisper</keyword>
+    <keyword>recorder</keyword>
+    <keyword>meetings</keyword>
+    <keyword>obsidian</keyword>
+  </keywords>
+  <launchable type="desktop-id">Voz.desktop</launchable>
+  <provides>
+    <binary>voz-app</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-06-05">
+      <description><p>Initial development build.</p></description>
+    </release>
+  </releases>
+</component>

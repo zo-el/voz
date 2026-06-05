@@ -49,7 +49,27 @@ Native backends are gated so the core stays buildable without system deps:
 
 Default build enables none of these (used by CI's fast lane and local logic tests).
 
-## Running the app (after prerequisites)
+## Running the app
 ```bash
-cargo tauri dev      # from voz-app/  (added/wired in milestones M1–M5)
+cargo build --manifest-path voz-app/src-tauri/Cargo.toml   # debug build
+DISPLAY=:1 ./voz-app/src-tauri/target/debug/voz-app        # run it
+# or, from voz-app/src-tauri/:  cargo tauri dev
 ```
+For the GPU build, add `--features cuda` (NVIDIA) or `--features vulkan`. The CPU
+build is the default. (Note: whisper.cpp's CUDA backend may require the CUDA 12
+toolkit; this machine has 11.5 — verify the GPU build before relying on it.)
+
+## Packaging (.deb — verified)
+```bash
+cd voz-app/src-tauri && cargo tauri build --bundles deb
+# -> target/release/bundle/deb/Voz_0.1.0_amd64.deb   (~7 MB)
+# install:  sudo apt install ./Voz_0.1.0_amd64.deb
+```
+For an AppImage too: `--bundles deb appimage` (downloads appimagetool on first run).
+
+**Models:** the app loads the configured Whisper model from
+`~/.local/share/voz/models/`, falling back to `base.en`. The `.deb` does **not**
+yet bundle a model (open decision in `docs/PLAN.md §6`: ship a small default in the
+package vs. auto-fetch on first run). Until then, install a model once, e.g.:
+`curl -L -o ~/.local/share/voz/models/ggml-base.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin`
