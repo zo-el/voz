@@ -24,6 +24,9 @@ vulkan = ["whisper", "whisper-rs/vulkan"]
 refine = ["dep:ureq", "dep:serde_json", "dep:wait-timeout"]
 # history -> SQLite search index over saved notes (bundled sqlite; needs a C compiler)
 history = ["dep:rusqlite"]
+# engine -> the orchestration runtime tying capture/refine/store/history together.
+# The transcriber is injected, so this builds/tests without the slow whisper compile.
+engine = ["audio", "refine", "history", "dep:time"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -36,5 +39,6 @@ ureq = { version = "2", optional = true, features = ["json"] }
 serde_json = { version = "1.0.150", optional = true }
 wait-timeout = { version = "0.2.1", optional = true }
 rusqlite = { version = "0.40.0", features = ["bundled"], optional = true }
+time = { version = "0.3.44", features = ["formatting"], optional = true }
 
 [dev-dependencies]

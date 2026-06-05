@@ -1,0 +1,518 @@
+// SPDX-License-Identifier: Apache-2.0
+//! The orchestration runtime (feature `engine`).
+//!
+//! Owns the recorder and the background job queue, turns [`Command`]s into actions,
+//! and emits [`Event`]s. Recording and processing are decoupled: `Stop` snapshots
+//! the captured audio, spawns a worker that transcribes → **saves the raw note
+//! first** → refines → saves the refined note → indexes it, while the recorder is
+//! immediately free for the next take. The transcriber is injected so this module
+//! builds and tests without the (slow) whisper.cpp compile.
+
+use crate::audio::Level;
+use crate::capture::{write_wav_16k_mono, Capturer};
+use crate::config::{RefineCfg, Settings};
+use crate::event::{Event, TrayState};
+use crate::history::History;
+use crate::jobs::{JobId, JobQueue, JobState};
+use crate::model::{NoteMeta, RefineStyle, Source};
+use crate::pipeline::{transcribe_and_attribute, CapturedAudio};
+use crate::refine::lossless_check;
+use crate::refine_backends::build_refiner;
+use crate::store::{audio_path, note_basename, raw_basename, raw_note, refined_note, save_notes};
+use crate::transcribe::Transcriber;
+use std::path::PathBuf;
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+/// RFC3339 (UTC) timestamp for `created`.
+#[must_use]
+pub fn now_rfc3339() -> String {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
+}
+
+/// Derive a short note title from the transcript (first words; sanitized).
+#[must_use]
+pub fn derive_title(text: &str) -> String {
+    let words: Vec<&str> = text.split_whitespace().take(6).collect();
+    let title = words.join(" ");
+    let title = title.trim_end_matches(['.', ',', ';', ':']).trim();
+    if title.is_empty() {
+        "Voice note".to_string()
+    } else {
+        crate::store::sanitize_filename(title)
+    }
+}
+
+/// Everything a worker needs to process one recording (no live device handles).
+struct JobCtx {
+    save_dir: String,
+    keep_audio: bool,
+    refine: RefineCfg,
+    api_key: Option<String>,
+    model_label: String,
+    history_path: PathBuf,
+}
+
+fn emit(events: &Sender<Event>, ev: Event) {
+    let _ = events.send(ev);
+}
+
+fn tray(events: &Sender<Event>, queue: &Arc<Mutex<JobQueue>>, rec: crate::recorder::RecState) {
+    let processing = queue.lock().map(|q| q.processing()).unwrap_or(0);
+    emit(events, Event::Tray(TrayState::derive(rec, processing)));
+}
+
+/// Process one finished recording end-to-end. Pure of devices: takes captured
+/// audio, returns nothing, emits events. Saves the raw note **before** refining
+/// so a crash or refine failure never loses the transcript.
+#[allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
+fn process_job(
+    job: JobId,
+    audio: CapturedAudio,
+    duration_secs: u64,
+    source: Source,
+    ctx: JobCtx,
+    transcriber: Arc<dyn Transcriber>,
+    queue: Arc<Mutex<JobQueue>>,
+    events: Sender<Event>,
+) {
+    let set_state = |s: JobState| {
+        if let Ok(mut q) = queue.lock() {
+            q.set_state(job, s);
+        }
+        emit(&events, Event::JobState { job, state: s });
+    };
+
+    // --- transcribe + attribute ---
+    set_state(JobState::Transcribing);
+    let transcript = match transcribe_and_attribute(&audio, transcriber.as_ref()) {
+        Ok(t) => t,
+        Err(e) => {
+            set_state(JobState::Failed);
+            emit(
+                &events,
+                Event::JobFailed {
+                    job,
+                    error: e.to_string(),
+                },
+            );
+            return;
+        }
+    };
+    let created = now_rfc3339();
+    let title = derive_title(&transcript.plain_text());
+    let base = note_basename(&created, &title);
+    let raw_base = raw_basename(&base);
+    let raw_md = raw_note(&created, &transcript, &base);
+
+    // --- persist RAW first (source of truth) ---
+    let refined_path = crate::store::expand_tilde(&ctx.save_dir).join(format!("{base}.md"));
+    if let Err(e) = crate::store::write_atomic(
+        &crate::store::expand_tilde(&ctx.save_dir)
+            .join("raw")
+            .join(format!("{raw_base}.md")),
+        &raw_md,
+    ) {
+        set_state(JobState::Failed);
+        emit(
+            &events,
+            Event::JobFailed {
+                job,
+                error: e.to_string(),
+            },
+        );
+        return;
+    }
+    if let Ok(mut q) = queue.lock() {
+        q.mark_raw_saved(job);
+    }
+    emit(
+        &events,
+        Event::RawTranscript {
+            job,
+            text: transcript.clone(),
+        },
+    );
+
+    // keep audio (best-effort; never fails the job)
+    if ctx.keep_audio {
+        if let Some(mic) = &audio.mic {
+            let _ = write_wav_16k_mono(&audio_path(&ctx.save_dir, &base), mic);
+        } else if let Some(sys) = &audio.system {
+            let _ = write_wav_16k_mono(&audio_path(&ctx.save_dir, &base), sys);
+        }
+    }
+
+    // --- refine (optional; failure keeps the raw note) ---
+    let refiner = build_refiner(&ctx.refine, ctx.api_key.clone());
+    let backend_name = refiner
+        .as_ref()
+        .map_or("None".to_string(), |r| r.name().to_string());
+    let mut refined_body = String::new();
+    let mut lossless_ok = true;
+    if let Some(r) = refiner {
+        set_state(JobState::Refining);
+        match r.refine(&transcript, &ctx.refine.style) {
+            Ok(body) => {
+                lossless_ok = lossless_check(&transcript.plain_text(), &body).ok;
+                refined_body = body;
+            }
+            Err(e) => {
+                lossless_ok = false;
+                emit(
+                    &events,
+                    Event::JobFailed {
+                        job,
+                        error: format!("refine: {e}"),
+                    },
+                );
+                // continue: we still save a refined note that falls back to raw
+            }
+        }
+    }
+
+    let body_for_note = if refined_body.is_empty() {
+        transcript.plain_text()
+    } else {
+        refined_body.clone()
+    };
+    let meta = NoteMeta {
+        created,
+        duration_secs,
+        source,
+        voices: transcript.voices().into_iter().map(String::from).collect(),
+        model: ctx.model_label.clone(),
+        refine_backend: backend_name,
+        lossless_ok,
+        words: transcript.word_count(),
+    };
+    let refined_md = refined_note(&meta, &body_for_note, &raw_base);
+
+    let saved = match save_notes(&ctx.save_dir, &base, &raw_base, &refined_md, &raw_md) {
+        Ok(p) => p,
+        Err(e) => {
+            set_state(JobState::Failed);
+            emit(
+                &events,
+                Event::JobFailed {
+                    job,
+                    error: e.to_string(),
+                },
+            );
+            return;
+        }
+    };
+
+    // index in history (best-effort)
+    if let Ok(h) = History::open(&ctx.history_path) {
+        let _ = h.insert(
+            &title,
+            &meta,
+            saved.refined.to_str().unwrap_or_default(),
+            saved.raw.to_str().unwrap_or_default(),
+        );
+    }
+    let _ = refined_path;
+
+    emit(
+        &events,
+        Event::RefineDone {
+            job,
+            refined: body_for_note,
+            lossless_ok,
+        },
+    );
+    emit(
+        &events,
+        Event::Saved {
+            job,
+            refined: saved.refined,
+            raw: saved.raw,
+        },
+    );
+    set_state(JobState::Done);
+    emit(
+        &events,
+        Event::Notify {
+            title: format!("Note ready: {title}"),
+            body: if lossless_ok {
+                "Saved".into()
+            } else {
+                "Saved (review: detail may differ)".into()
+            },
+            job,
+        },
+    );
+    tray(&events, &queue, crate::recorder::RecState::Idle);
+}
+
+/// The engine: drive it with [`Engine::handle`]-style methods; consume [`Event`]s
+/// from the receiver paired with the `events` sender you pass to [`Engine::new`].
+pub struct Engine {
+    settings: Settings,
+    recorder: crate::recorder::Recorder,
+    queue: Arc<Mutex<JobQueue>>,
+    capturer: Option<Capturer>,
+    started: Option<Instant>,
+    started_source: Source,
+    transcriber: Arc<dyn Transcriber>,
+    history_path: PathBuf,
+    api_key: Option<String>,
+    events: Sender<Event>,
+}
+
+impl std::fmt::Debug for Engine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Engine")
+            .field("state", &self.recorder.state())
+            .finish()
+    }
+}
+
+impl Engine {
+    /// Create an engine. `transcriber` is injected (the app supplies a
+    /// `WhisperTranscriber`); `history_path` defaults via [`History::default_path`].
+    #[must_use]
+    pub fn new(
+        settings: Settings,
+        transcriber: Arc<dyn Transcriber>,
+        history_path: PathBuf,
+        events: Sender<Event>,
+    ) -> Self {
+        let concurrency = 2;
+        Engine {
+            settings,
+            recorder: crate::recorder::Recorder::default(),
+            queue: Arc::new(Mutex::new(JobQueue::new(concurrency))),
+            capturer: None,
+            started: None,
+            started_source: Source::Both,
+            transcriber,
+            history_path,
+            api_key: None,
+            events,
+        }
+    }
+
+    /// Provide the Claude API key (read from the OS secret service by the app).
+    pub fn set_api_key(&mut self, key: Option<String>) {
+        self.api_key = key;
+    }
+
+    #[must_use]
+    pub fn state(&self) -> crate::recorder::RecState {
+        self.recorder.state()
+    }
+
+    /// Current capture levels (zero when idle).
+    #[must_use]
+    pub fn level(&self) -> Level {
+        self.capturer
+            .as_ref()
+            .map_or(Level::default(), Capturer::level)
+    }
+
+    /// Snapshot of the job queue for the History tab.
+    #[must_use]
+    pub fn jobs(&self) -> Vec<crate::jobs::Job> {
+        self.queue
+            .lock()
+            .map(|q| q.jobs().to_vec())
+            .unwrap_or_default()
+    }
+
+    /// Start recording from `source`.
+    ///
+    /// # Errors
+    /// Fails on an invalid transition or if capture can't start.
+    pub fn start(&mut self, source: Source) -> crate::Result<()> {
+        self.recorder.start()?;
+        let cap = Capturer::start(
+            source,
+            &self.settings.sources.mic_device,
+            self.settings.sources.system_audio,
+        )?;
+        self.capturer = Some(cap);
+        self.started = Some(Instant::now());
+        self.started_source = source;
+        emit(&self.events, Event::RecState(self.recorder.state()));
+        tray(&self.events, &self.queue, self.recorder.state());
+        Ok(())
+    }
+
+    /// # Errors
+    /// Fails on an invalid transition.
+    pub fn pause(&mut self) -> crate::Result<()> {
+        self.recorder.pause()?;
+        emit(&self.events, Event::RecState(self.recorder.state()));
+        Ok(())
+    }
+
+    /// # Errors
+    /// Fails on an invalid transition.
+    pub fn resume(&mut self) -> crate::Result<()> {
+        self.recorder.resume()?;
+        emit(&self.events, Event::RecState(self.recorder.state()));
+        Ok(())
+    }
+
+    /// Discard the current recording without producing a note.
+    ///
+    /// # Errors
+    /// Fails if not recording.
+    pub fn cancel(&mut self) -> crate::Result<()> {
+        self.recorder.cancel()?;
+        self.capturer.take(); // dropping stops the streams
+        self.started = None;
+        emit(&self.events, Event::RecState(self.recorder.state()));
+        tray(&self.events, &self.queue, self.recorder.state());
+        Ok(())
+    }
+
+    /// Stop recording and enqueue a background job; the recorder returns to Idle.
+    ///
+    /// # Errors
+    /// Fails if not recording.
+    pub fn stop(&mut self) -> crate::Result<()> {
+        self.recorder.stop()?;
+        let duration = self.started.take().map_or(0, |t| t.elapsed().as_secs());
+        let audio = self.capturer.take().map(Capturer::stop).unwrap_or_default();
+        let source = self.started_source;
+        emit(&self.events, Event::RecState(self.recorder.state()));
+
+        let job = self
+            .queue
+            .lock()
+            .map(|mut q| q.enqueue(source))
+            .unwrap_or(JobId(0));
+        let ctx = JobCtx {
+            save_dir: self.settings.general.save_dir.clone(),
+            keep_audio: self.settings.general.keep_audio,
+            refine: self.settings.refine.clone(),
+            api_key: self.api_key.clone(),
+            model_label: format!("whisper {}", self.settings.transcription.model),
+            history_path: self.history_path.clone(),
+        };
+        let (tx, q, t) = (
+            self.events.clone(),
+            Arc::clone(&self.queue),
+            Arc::clone(&self.transcriber),
+        );
+        tray(&self.events, &self.queue, self.recorder.state());
+        std::thread::spawn(move || {
+            process_job(job, audio, duration, source, ctx, t, q, tx);
+        });
+        Ok(())
+    }
+
+    /// Replace settings (e.g. after the user edits them).
+    pub fn update_settings(&mut self, settings: Settings) {
+        self.settings = settings;
+    }
+
+    /// Style currently configured (for re-refine).
+    #[must_use]
+    pub fn refine_style(&self) -> RefineStyle {
+        self.settings.refine.style.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::RefineBackend;
+    use crate::model::{Speaker, Transcript, Turn};
+    use std::sync::mpsc::channel;
+
+    struct MockTranscriber;
+    impl Transcriber for MockTranscriber {
+        fn transcribe(&self, _audio: &[f32], speaker: Speaker) -> crate::Result<Transcript> {
+            Ok(Transcript {
+                turns: vec![Turn {
+                    speaker,
+                    text: "Planning sync ship the settings panel first".into(),
+                    start_ms: 0,
+                    end_ms: 0,
+                }],
+                language: Some("en".into()),
+            })
+        }
+    }
+
+    #[test]
+    fn derive_title_takes_first_words() {
+        assert_eq!(
+            derive_title("hello there my friend, how are you"),
+            "hello there my friend, how are"
+        );
+        assert_eq!(derive_title("   "), "Voice note");
+    }
+
+    #[test]
+    fn process_job_saves_raw_first_then_refined_and_indexes() {
+        let dir = std::env::temp_dir().join(format!("voz-engine-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (tx, rx) = channel();
+        let queue = Arc::new(Mutex::new(JobQueue::new(2)));
+        let job = queue.lock().unwrap().enqueue(Source::Mic);
+        let ctx = JobCtx {
+            save_dir: dir.to_str().unwrap().to_string(),
+            keep_audio: false,
+            refine: RefineCfg {
+                backend: RefineBackend::None, // offline: raw-only, no external deps
+                ollama_model: String::new(),
+                style: RefineStyle::Adaptive,
+                lossless_guard: true,
+            },
+            api_key: None,
+            model_label: "mock".into(),
+            history_path: dir.join("history.sqlite"),
+        };
+        let audio = CapturedAudio {
+            mic: Some(vec![0.0; 4]),
+            system: None,
+        };
+
+        process_job(
+            job,
+            audio,
+            5,
+            Source::Mic,
+            ctx,
+            Arc::new(MockTranscriber),
+            Arc::clone(&queue),
+            tx,
+        );
+
+        // raw note saved before any refined note; both exist
+        let raw = dir.join("raw");
+        assert!(raw.is_dir());
+        let refined: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
+            .collect();
+        assert_eq!(refined.len(), 1);
+        // events: ends with Done + a notification
+        let events: Vec<Event> = rx.try_iter().collect();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::RawTranscript { .. })));
+        assert!(events.iter().any(|e| matches!(e, Event::Saved { .. })));
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::JobState {
+                state: JobState::Done,
+                ..
+            }
+        )));
+        assert!(events.iter().any(|e| matches!(e, Event::Notify { .. })));
+        // history indexed
+        let h = History::open(&dir.join("history.sqlite")).unwrap();
+        assert_eq!(h.recent(10).unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

@@ -14,6 +14,8 @@ pub mod audio;
 pub mod capture;
 pub mod command;
 pub mod config;
+#[cfg(feature = "engine")]
+pub mod engine;
 pub mod event;
 #[cfg(feature = "history")]
 pub mod history;
