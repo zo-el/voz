@@ -1,55 +1,95 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8">
-<link rel="stylesheet" href="style.css"></head>
-<body class="stage">
-<div class="panel tethered">
-
-  <!-- header (single settings entry lives in the bottom nav, not here) -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<style>
+  html, body { background: var(--panel); height: 100%; }
+  body { overflow: hidden; }
+  .app { width: 100%; height: 100vh; display: flex; flex-direction: column; background: var(--panel); color: var(--text); }
+  .app > .body { flex: 1; overflow-y: auto; }
+  .view { display: none; }
+  .view.on { display: block; }
+  .result { margin-top: 14px; }
+  #search input::placeholder { color: var(--text-3); }
+</style>
+</head>
+<body>
+<div class="app">
   <div class="hdr">
     <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
     <div class="name">Voz</div>
     <div class="spacer"></div>
-    <div class="statepill"><span class="dot"></span> Ready</div>
+    <div class="statepill" id="statepill"><span class="dot"></span> <span id="statetext">Ready</span></div>
   </div>
 
   <div class="body">
-    <!-- compact source selector: active shows label, others icon-only -->
-    <div class="srcbar">
-      <span class="cap">Source</span>
-      <div class="spacer"></div>
-      <div class="srcpill">
-        <button title="Microphone only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg><span>Mic</span></button>
-        <button title="System audio only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg><span>System</span></button>
-        <button class="on" title="Mic + system (meeting)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/></svg><span>Both</span></button>
-      </div>
-    </div>
-
-    <div class="stage-rec">
-      <div class="timer idle">00:00</div>
-      <div class="wave idle">
-        <i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i><i style="height:6px"></i>
+    <!-- RECORD -->
+    <section class="view on" id="view-record">
+      <div class="srcbar">
+        <span class="cap">Source</span>
+        <div class="spacer"></div>
+        <div class="srcpill" id="srcpill">
+          <button data-src="mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg><span>Mic</span></button>
+          <button data-src="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg><span>System</span></button>
+          <button class="on" data-src="both"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/></svg><span>Both</span></button>
+        </div>
       </div>
 
-      <div class="controls">
-        <div class="sidebtn hint" title="Choose input"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg><span class="kbd">Built-in mic</span></div>
-        <button class="recbtn" title="Start recording"><svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg></button>
-        <div class="sidebtn hint" title="Speakers / headphones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2" y="14" width="5" height="7" rx="1.5"/><rect x="17" y="14" width="5" height="7" rx="1.5"/></svg><span class="kbd">Headphones</span></div>
+      <div class="stage-rec">
+        <div class="timer idle" id="timer">00:00</div>
+        <div class="wave idle" id="wave"></div>
+        <div class="controls">
+          <div class="sidebtn" id="btn-pause" title="Pause" style="visibility:hidden"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></div>
+          <button class="recbtn" id="recbtn" title="Record"><svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg></button>
+          <div class="sidebtn" id="btn-cancel" title="Cancel" style="visibility:hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+        </div>
+        <div class="hint-line" id="hint">Click the mic, or the tray icon, to record</div>
       </div>
 
-      <div class="hint-line">Press <span class="kbdtag">Ctrl</span> <span class="kbdtag">Super</span> <span class="kbdtag">Space</span> anywhere to record</div>
-    </div>
+      <div class="procbar" id="procbar" style="display:none">
+        <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" stroke-linecap="round"/></svg>
+        <div class="pt" id="proctext"><b>Processing</b></div>
+        <div class="go">History <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
 
-    <!-- a previous note is still being processed; recording stays available -->
-    <div class="procbar" title="Open in History">
-      <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" stroke-linecap="round"/></svg>
-      <div class="pt"><b>Refining</b> · Planning sync — ~15s left</div>
-      <div class="go">History <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>
-    </div>
+      <div class="card result" id="result" style="display:none">
+        <div class="label"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent-2)"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg> Refined note <span class="tag refine" id="result-backend"></span></div>
+        <div class="transcript" id="result-text"></div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="view" id="view-history">
+      <div class="subhdr"><h3>History</h3></div>
+      <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span id="search" style="flex:1"><input id="searchbox" placeholder="Search transcripts…" style="background:transparent;border:none;color:var(--text);outline:none;font-size:12px;width:100%"></span></div>
+      <div class="hist" id="histlist"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="view-settings">
+      <div class="subhdr"><h3>Settings</h3></div>
+      <div class="set-group"><h4>Files</h4>
+        <div class="row single"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+          <div class="txt"><div class="t">Save location</div><div class="s mono" id="set-savedir">—</div></div></div>
+      </div>
+      <div class="set-group"><h4>Engine</h4>
+        <div class="stack">
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg></div><div class="txt"><div class="t">Model</div><div class="s" id="set-model">—</div></div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div><div class="txt"><div class="t">Refine backend</div><div class="s" id="set-backend">—</div></div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5z"/></svg></div><div class="txt"><div class="t">Default source</div><div class="s" id="set-source">—</div></div></div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <div class="nav">
-    <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
-    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
-    <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
+    <a class="active" data-view="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>Record</a>
+    <a data-view="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
+    <a data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
   </div>
 </div>
-</body></html>
+<script src="app.js"></script>
+</body>
+</html>

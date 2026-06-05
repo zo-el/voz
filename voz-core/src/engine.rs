@@ -418,6 +418,12 @@ impl Engine {
     pub fn refine_style(&self) -> RefineStyle {
         self.settings.refine.style.clone()
     }
+
+    /// Read the current settings (for the Settings view).
+    #[must_use]
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
 }
 
 #[cfg(test)]
