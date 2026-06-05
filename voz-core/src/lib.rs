@@ -15,6 +15,8 @@ pub mod capture;
 pub mod command;
 pub mod config;
 pub mod event;
+#[cfg(feature = "history")]
+pub mod history;
 pub mod jobs;
 pub mod model;
 #[cfg(feature = "whisper")]

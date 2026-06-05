@@ -126,10 +126,92 @@ pub fn write_atomic(path: &Path, contents: &str) -> crate::Result<()> {
     Ok(())
 }
 
+/// Expand a leading `~`/`~/` to `$HOME` so a configured save dir like
+/// `~/Obsidian/Vault/Voz` resolves correctly.
+#[must_use]
+pub fn expand_tilde(p: &str) -> PathBuf {
+    if p == "~" {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home);
+        }
+    } else if let Some(rest) = p.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home).join(rest);
+        }
+    }
+    PathBuf::from(p)
+}
+
+/// Where a recording's notes were written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SavedPaths {
+    pub refined: PathBuf,
+    pub raw: PathBuf,
+}
+
+/// Write the two linked notes under `save_dir`: the refined note as a sibling
+/// `<base>.md`, the raw note under `raw/<raw_base>.md`. The **raw note is written
+/// first** (source of truth) so an interruption can never leave a refined note
+/// without its transcript.
+///
+/// # Errors
+/// Propagates filesystem errors.
+pub fn save_notes(
+    save_dir: &str,
+    base: &str,
+    raw_base: &str,
+    refined_md: &str,
+    raw_md: &str,
+) -> crate::Result<SavedPaths> {
+    let dir = expand_tilde(save_dir);
+    let refined = dir.join(format!("{base}.md"));
+    let raw = dir.join("raw").join(format!("{raw_base}.md"));
+    write_atomic(&raw, raw_md)?;
+    write_atomic(&refined, refined_md)?;
+    Ok(SavedPaths { refined, raw })
+}
+
+/// Path for a recording's kept audio file: `audio/<base>.wav` under the save dir.
+#[must_use]
+pub fn audio_path(save_dir: &str, base: &str) -> PathBuf {
+    expand_tilde(save_dir)
+        .join("audio")
+        .join(format!("{base}.wav"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::{Speaker, Turn};
+
+    #[test]
+    fn expand_tilde_uses_home() {
+        if let Some(home) = std::env::var_os("HOME") {
+            let p = expand_tilde("~/x/y");
+            assert!(p.starts_with(&home) && p.ends_with("x/y"));
+        }
+        assert_eq!(expand_tilde("/abs/path"), PathBuf::from("/abs/path"));
+    }
+
+    #[test]
+    fn save_notes_writes_raw_subfolder_and_refined_sibling() {
+        let dir = std::env::temp_dir().join(format!("voz-save-{}", std::process::id()));
+        let dir_s = dir.to_str().unwrap();
+        let paths = save_notes(
+            dir_s,
+            "2026-06-05 14-07 Sync",
+            "2026-06-05 14-07 Sync (raw)",
+            "REFINED",
+            "RAW",
+        )
+        .unwrap();
+        assert!(paths.refined.ends_with("2026-06-05 14-07 Sync.md"));
+        assert!(paths.raw.ends_with("raw/2026-06-05 14-07 Sync (raw).md"));
+        assert_eq!(std::fs::read_to_string(&paths.refined).unwrap(), "REFINED");
+        assert_eq!(std::fs::read_to_string(&paths.raw).unwrap(), "RAW");
+        assert!(audio_path(dir_s, "x").ends_with("audio/x.wav"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn sample_meta() -> NoteMeta {
         NoteMeta {
