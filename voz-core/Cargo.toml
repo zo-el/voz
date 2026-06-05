@@ -19,6 +19,9 @@ audio = ["dep:hound"]
 whisper = ["dep:whisper-rs", "dep:sha2", "dep:ureq"]
 cuda = ["whisper", "whisper-rs/cuda"]
 vulkan = ["whisper", "whisper-rs/vulkan"]
+# refine -> LLM backends. CLI backends (Claude Code / Codex) need only std + a
+# process timeout; Ollama / Claude API add an HTTP client + JSON.
+refine = ["dep:ureq", "dep:serde_json", "dep:wait-timeout"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -27,6 +30,8 @@ thiserror = "2"
 hound = { version = "3", optional = true }
 whisper-rs = { version = "0.16.0", optional = true }
 sha2 = { version = "0.10.9", optional = true }
-ureq = { version = "2", optional = true }
+ureq = { version = "2", optional = true, features = ["json"] }
+serde_json = { version = "1.0.150", optional = true }
+wait-timeout = { version = "0.2.1", optional = true }
 
 [dev-dependencies]

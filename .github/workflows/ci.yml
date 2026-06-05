@@ -32,10 +32,12 @@ jobs:
         run: |
           cargo clippy --workspace --all-targets -- -D warnings
           cargo clippy -p voz-core --features audio --all-targets -- -D warnings
+          cargo clippy -p voz-core --features refine --all-targets -- -D warnings
       - name: Test
         run: |
           cargo test --workspace
           cargo test -p voz-core --features audio
+          cargo test -p voz-core --features refine
 
   supply-chain:
     name: cargo-deny

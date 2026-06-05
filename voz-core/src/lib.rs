@@ -22,6 +22,8 @@ pub mod models;
 pub mod pipeline;
 pub mod recorder;
 pub mod refine;
+#[cfg(feature = "refine")]
+pub mod refine_backends;
 pub mod store;
 pub mod transcribe;
 #[cfg(feature = "whisper")]
