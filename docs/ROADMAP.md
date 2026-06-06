@@ -82,8 +82,9 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
     custom-shortcut fallback; push-to-talk *and* toggle. (Today: X11 only.)
 15. ⬜ **Live streaming partials** (L) — VAD (Silero) + chunking so text appears while
     you speak, finalizing on silence. *Why:* feels instant. *Dep:* VAD integration.
-16. ⬜ **Real waveform + capture polish** (S) — drive the waveform from real per-source
-    levels; smooth pause/resume; elapsed/words live.
+16. 🚧 **Real waveform + capture polish** (S) — ✅ waveform driven by real capture
+    level (`get_level` polled live) + live elapsed timer. ⬜ Remaining: per-source
+    (mic vs system) split visualization, smoother pause/resume, live word count.
 17. 🚧 **Editable refinement prompt + style presets UI** (S) — Adaptive/Meeting/Memo/
     Custom, editable in Settings, with a live preview. *Dep:* none.
 18. ✅ **Model management UI** (M) — list/download/switch/delete models with sizes and
