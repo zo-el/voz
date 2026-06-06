@@ -49,6 +49,18 @@ Native backends are gated so the core stays buildable without system deps:
 
 Default build enables none of these (used by CI's fast lane and local logic tests).
 
+## Releasing (automated)
+Releases are cut by CI — you never hand-build/upload. To ship a new version:
+
+1. Bump `"version"` in `voz-app/src-tauri/tauri.conf.json` (and add a `CHANGELOG.md`
+   entry). Optionally bump `[workspace.package] version` in `Cargo.toml` to match.
+2. Merge to `main`.
+3. `.github/workflows/release.yml` builds the `.deb` + AppImage, runs the core
+   tests, and publishes the `v<version>` GitHub Release with `SHA256SUMS`.
+
+Merges that don't change the version are skipped (no wasted builds). Released
+bundles are the **CPU** build (CI has no GPU); CUDA/Vulkan are local opt-in builds.
+
 ## Running the app
 ```bash
 cargo build --manifest-path voz-app/src-tauri/Cargo.toml   # debug build

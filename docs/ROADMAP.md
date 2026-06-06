@@ -47,9 +47,10 @@ recording + getting notes within a minute, with no terminal and no surprises.
    ship **AppImage** (portable) and a **Flatpak** (Flathub-ready, sandboxed);
    publish checksums and a signed **GitHub Release** via CI. *Why:* one trusted
    install path per distro. *Dep:* CI release pipeline.
-6. ⬜ **CI release pipeline** (M) — tag → build `.deb`/AppImage/Flatpak → run the
-   full + slow test lanes → attach artifacts + checksums to the GitHub Release.
-   *Why:* repeatable, auditable releases.
+6. 🚧 **CI release pipeline** (M) — ✅ `.github/workflows/release.yml`: a push to
+   `main` with a bumped version auto-builds the `.deb` + AppImage, gates on the core
+   tests, and publishes a `v<version>` GitHub Release with checksums. ⬜ Remaining:
+   add Flatpak to the matrix, a slow test lane, and artifact signing.
 7. ⬜ **GNOME tray reliability + docs** (S) — verify the AppIndicator path across
    GNOME versions; detect a missing/disabled extension and guide the user; keep the
    app fully usable via window + hotkey without the tray.

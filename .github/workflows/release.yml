@@ -1,0 +1,92 @@
+name: Release
+
+# Auto-build and publish a GitHub Release when `main` advances to a new version.
+# Bump the version in voz-app/src-tauri/tauri.conf.json (and CHANGELOG.md), merge
+# to main, and this cuts `v<version>` with the .deb + AppImage attached. Merges
+# that don't change the version are skipped (no wasted 15-min builds).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # create tags + releases
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read app version
+        id: ver
+        run: |
+          V=$(grep -m1 '"version"' voz-app/src-tauri/tauri.conf.json \
+              | sed -E 's/.*"version" *: *"([^"]+)".*/\1/')
+          echo "version=$V"      >> "$GITHUB_OUTPUT"
+          echo "tag=v$V"         >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version is already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true"  >> "$GITHUB_OUTPUT"
+            echo "::notice::Release ${{ steps.ver.outputs.tag }} already exists — skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install system dependencies
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libpipewire-0.3-dev \
+            libwebkit2gtk-4.1-dev librsvg2-dev \
+            build-essential cmake clang
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.check.outputs.exists == 'false'
+      - uses: Swatinem/rust-cache@v2
+        if: steps.check.outputs.exists == 'false'
+
+      - name: Test the core (gate the release)
+        if: steps.check.outputs.exists == 'false'
+        run: cargo test -p voz-core --features engine
+
+      - name: Install Tauri CLI
+        if: steps.check.outputs.exists == 'false'
+        run: cargo install tauri-cli --version '^2' --locked
+
+      - name: Build bundles (.deb + AppImage, CPU)
+        if: steps.check.outputs.exists == 'false'
+        working-directory: voz-app/src-tauri
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1 # CI runners often lack FUSE
+        run: cargo tauri build --bundles deb appimage
+
+      - name: Collect artifacts + checksums
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          mkdir -p dist
+          cp voz-app/src-tauri/target/release/bundle/deb/*.deb dist/ 2>/dev/null || true
+          cp voz-app/src-tauri/target/release/bundle/appimage/*.AppImage dist/ 2>/dev/null || true
+          ( cd dist && sha256sum * > SHA256SUMS )
+          ls -la dist
+
+      - name: Create the GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" dist/* \
+            --title "Voz ${{ steps.ver.outputs.tag }}" \
+            --notes-file CHANGELOG.md \
+            --target "${{ github.sha }}"
+
+# Note: CI runners have no GPU, so released bundles are the CPU build (runs
+# everywhere). The CUDA/Vulkan variants are opt-in local builds (--features cuda).
