@@ -140,6 +140,51 @@ impl Settings {
             self.schema_version = SCHEMA_VERSION;
         }
     }
+
+    /// `$XDG_CONFIG_HOME/voz/config.toml` (fallback `~/.config/voz/config.toml`).
+    #[must_use]
+    pub fn config_path() -> std::path::PathBuf {
+        let base = std::env::var_os("XDG_CONFIG_HOME")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
+            })
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        base.join("voz").join("config.toml")
+    }
+
+    /// Load settings from disk, or defaults if absent/unreadable (a corrupt file
+    /// is backed up rather than crashing).
+    #[must_use]
+    pub fn load() -> Self {
+        let path = Self::config_path();
+        match std::fs::read_to_string(&path) {
+            Ok(s) => match Self::from_toml(&s) {
+                Ok(cfg) => cfg,
+                Err(_) => {
+                    let _ = std::fs::rename(&path, path.with_extension("toml.bak"));
+                    Self::default()
+                }
+            },
+            Err(_) => Self::default(),
+        }
+    }
+
+    /// Persist settings to `config_path()` (atomic temp+rename).
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Config`] on a write failure.
+    pub fn save(&self) -> crate::Result<()> {
+        let path = Self::config_path();
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let toml = self.to_toml()?;
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, toml)?;
+        std::fs::rename(&tmp, &path)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -201,5 +246,21 @@ mod tests {
             Settings::from_toml("not = [valid"),
             Err(crate::Error::Config(_))
         ));
+    }
+
+    #[test]
+    fn save_then_load_round_trips_on_disk() {
+        let home = std::env::temp_dir().join(format!("voz-cfg-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        std::env::set_var("XDG_CONFIG_HOME", &home);
+        let mut s = Settings::default();
+        s.general.save_dir = "~/Obsidian/MyVault/Voz".into();
+        s.sources.default_source = Source::Mic;
+        s.save().unwrap();
+        let loaded = Settings::load();
+        assert_eq!(loaded.general.save_dir, "~/Obsidian/MyVault/Voz");
+        assert_eq!(loaded.sources.default_source, Source::Mic);
+        let _ = std::fs::remove_dir_all(&home);
+        std::env::remove_var("XDG_CONFIG_HOME");
     }
 }

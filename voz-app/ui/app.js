@@ -110,6 +110,11 @@ function showView(name) {
 document.querySelectorAll('.nav a').forEach(a => a.onclick = () => showView(a.dataset.view));
 $('procbar').onclick = () => showView('history');
 
+// ---- window controls (frameless: minimize / hide-to-tray) ----
+function appWindow() { try { return window.__TAURI__.window.getCurrentWindow(); } catch (e) { return null; } }
+$('btn-min').onclick = () => { const w = appWindow(); if (w) w.minimize(); };
+$('btn-hide').onclick = () => { const w = appWindow(); if (w) w.hide(); };
+
 // ---- history ----
 async function loadHistory() {
   const list = $('histlist');
@@ -119,11 +124,13 @@ async function loadHistory() {
   if (!rows.length) { const d = document.createElement('div'); d.className = 'hint-line'; d.textContent = 'No recordings yet.'; list.appendChild(d); return; }
   for (const r of rows) {
     const item = document.createElement('div'); item.className = 'hitem';
+    item.title = 'Open in your editor / Obsidian';
+    item.onclick = () => { if (r.refined_path) invoke('open_path', { path: r.refined_path }).catch(() => {}); };
     const when = document.createElement('div'); when.className = 'when'; when.textContent = (r.created || '').slice(11, 16) || '—';
     const body = document.createElement('div'); body.className = 'h-body';
     const t = document.createElement('div'); t.className = 'h-t'; t.textContent = r.title || '(untitled)';
     const m = document.createElement('div'); m.className = 'h-m';
-    const b1 = document.createElement('span'); b1.innerHTML = `<b>${r.source || ''}</b>`;
+    const b1 = document.createElement('span'); const bb = document.createElement('b'); bb.textContent = r.source || ''; b1.appendChild(bb);
     const b2 = document.createElement('span'); b2.textContent = `${r.words || 0}w`;
     const b3 = document.createElement('span'); b3.textContent = r.backend || '';
     m.append(b1, b2, b3); body.append(t, m); item.append(when, body); list.appendChild(item);
@@ -131,15 +138,51 @@ async function loadHistory() {
 }
 
 // ---- settings ----
-async function loadSettings() {
-  try {
-    const s = await invoke('get_settings');
-    $('set-savedir').textContent = s.general?.save_dir ?? '—';
-    $('set-model').textContent = s.transcription?.model ?? '—';
-    $('set-backend').textContent = s.refine?.backend ?? '—';
-    $('set-source').textContent = s.sources?.default_source ?? '—';
-  } catch (e) {}
+let currentSettings = null;
+const BACKENDS = ['claude_code', 'codex', 'ollama', 'claude_api', 'none'];
+const BACKEND_LABEL = { claude_code: 'Claude Code', codex: 'Codex CLI', ollama: 'Local LLM (Ollama)', claude_api: 'Claude API', none: 'None (raw only)' };
+
+async function persistSettings() {
+  if (!currentSettings) return;
+  try { await invoke('update_settings', { settings: currentSettings }); } catch (e) { console.error(e); }
+  loadSettings();
 }
+
+async function loadSettings() {
+  try { currentSettings = await invoke('get_settings'); } catch (e) { return; }
+  const s = currentSettings;
+  $('set-savedir').textContent = s.general?.save_dir ?? '—';
+  $('set-model').textContent = s.transcription?.model ?? '—';
+  $('set-backend').textContent = BACKEND_LABEL[s.refine?.backend] ?? (s.refine?.backend ?? '—');
+  document.querySelectorAll('#set-source-seg span').forEach(sp =>
+    sp.classList.toggle('on', sp.dataset.src === s.sources?.default_source));
+  // reflect the default source on the Record screen too (while idle)
+  if (!recording && s.sources?.default_source) {
+    source = s.sources.default_source;
+    $('srcpill').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.src === source));
+  }
+}
+
+// change save folder via the native directory picker
+$('set-savedir-btn').onclick = async () => {
+  try {
+    const dir = await window.__TAURI__.dialog.open({ directory: true, title: 'Choose save folder (e.g. your Obsidian vault)' });
+    if (dir && currentSettings) { currentSettings.general.save_dir = dir; await persistSettings(); }
+  } catch (e) { console.error(e); }
+};
+// cycle the refine backend
+$('set-backend-btn').onclick = async () => {
+  if (!currentSettings) return;
+  const i = BACKENDS.indexOf(currentSettings.refine.backend);
+  currentSettings.refine.backend = BACKENDS[(i + 1) % BACKENDS.length];
+  await persistSettings();
+};
+// pick the default source
+document.querySelectorAll('#set-source-seg span').forEach(sp => sp.onclick = async () => {
+  if (!currentSettings) return;
+  currentSettings.sources.default_source = sp.dataset.src;
+  await persistSettings();
+});
 
 // ---- engine events ----
 listen('voz://event', (e) => {

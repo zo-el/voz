@@ -7,6 +7,7 @@
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
+use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -83,7 +84,19 @@ fn get_settings(state: State<AppState>) -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn update_settings(settings: serde_json::Value, state: State<AppState>) -> Result<(), String> {
     let parsed: Settings = serde_json::from_value(settings).map_err(err)?;
+    parsed.save().map_err(err)?; // persist to config.toml
     state.engine.lock().map_err(err)?.update_settings(parsed);
+    Ok(())
+}
+
+/// Open a saved note in the user's default app (e.g. Obsidian/editor). The path
+/// comes from our own history index, and is passed as argv (no shell).
+#[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    std::process::Command::new("xdg-open")
+        .arg(&path)
+        .spawn()
+        .map_err(err)?;
     Ok(())
 }
 
@@ -143,6 +156,16 @@ fn event_json(ev: &Event) -> serde_json::Value {
     }
 }
 
+fn toggle_panel(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("panel") {
+        let _ = if win.is_visible().unwrap_or(false) {
+            win.hide()
+        } else {
+            win.show().and_then(|()| win.set_focus())
+        };
+    }
+}
+
 fn tray_icon_for(app: &tauri::AppHandle, ts: TrayState) -> Option<Image<'static>> {
     let name = match ts.badge() {
         Some("rec") => "tray-rec.png",
@@ -191,7 +214,7 @@ impl Transcriber for NullTranscriber {
 /// absent, download `base.en` (pinned + SHA-256 verified), then hot-swap a real
 /// transcriber into the engine. Emits `modelProgress` events for the UI.
 fn ensure_model(app: tauri::AppHandle) {
-    let configured = Settings::default().transcription.model;
+    let configured = Settings::load().transcription.model;
     if voz_core::models::is_installed(&configured) || voz_core::models::is_installed("base.en") {
         return; // a model is present; the startup load already used it
     }
@@ -246,7 +269,7 @@ fn pump_events(app: tauri::AppHandle, rx: Receiver<Event>) {
 }
 
 fn main() {
-    let settings = Settings::default();
+    let settings = Settings::load();
     let transcriber = load_transcriber(&settings);
     let (tx, rx) = channel::<Event>();
     let engine = Engine::new(settings, transcriber, History::default_path(), tx);
@@ -277,6 +300,7 @@ fn main() {
         .manage(AppState {
             engine: Mutex::new(engine),
         })
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             start,
             stop,
@@ -287,24 +311,29 @@ fn main() {
             get_level,
             get_settings,
             update_settings,
-            get_history
+            get_history,
+            open_path
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            // tray icon; left-click toggles the panel.
+            // tray icon. On GNOME the AppIndicator extension renders this and
+            // left-click activation is unreliable, so we attach a right-click menu
+            // (Show/Hide/Quit) and also toggle on left-click where supported.
+            let show = MenuItem::with_id(app, "show", "Show / hide Voz", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit Voz", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
             let _tray = TrayIconBuilder::with_id("voz-tray")
                 .icon(app.default_window_icon().cloned().unwrap())
                 .tooltip("Voz")
-                .on_tray_icon_event(|tray, _event| {
-                    if let Some(win) = tray.app_handle().get_webview_window("panel") {
-                        let _ = if win.is_visible().unwrap_or(false) {
-                            win.hide()
-                        } else {
-                            win.show().and_then(|()| win.set_focus())
-                        };
-                    }
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => toggle_panel(app),
+                    "quit" => app.exit(0),
+                    _ => {}
                 })
+                .on_tray_icon_event(|tray, _event| toggle_panel(tray.app_handle()))
                 .build(app)?;
 
             // forward engine events to the webview + tray

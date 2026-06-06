@@ -17,11 +17,13 @@
 </head>
 <body>
 <div class="app">
-  <div class="hdr">
-    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-    <div class="name">Voz</div>
-    <div class="spacer"></div>
+  <div class="hdr" data-tauri-drag-region>
+    <div class="logo" data-tauri-drag-region><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="name" data-tauri-drag-region>Voz</div>
+    <div class="spacer" data-tauri-drag-region></div>
     <div class="statepill" id="statepill"><span class="dot"></span> <span id="statetext">Ready</span></div>
+    <div class="iconbtn" id="btn-min" title="Minimize"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></div>
+    <div class="iconbtn" id="btn-hide" title="Hide to tray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
   </div>
 
   <div class="body">
@@ -72,13 +74,15 @@
       <div class="subhdr"><h3>Settings</h3></div>
       <div class="set-group"><h4>Files</h4>
         <div class="row single"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
-          <div class="txt"><div class="t">Save location</div><div class="s mono" id="set-savedir">—</div></div></div>
+          <div class="txt"><div class="t">Save location</div><div class="s mono" id="set-savedir">—</div></div>
+          <div class="ctrl-sm" id="set-savedir-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Change</div></div>
       </div>
       <div class="set-group"><h4>Engine</h4>
         <div class="stack">
           <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg></div><div class="txt"><div class="t">Model</div><div class="s" id="set-model">—</div></div></div>
-          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div><div class="txt"><div class="t">Refine backend</div><div class="s" id="set-backend">—</div></div></div>
-          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5z"/></svg></div><div class="txt"><div class="t">Default source</div><div class="s" id="set-source">—</div></div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div><div class="txt"><div class="t">Refine backend</div><div class="s" id="set-backend">—</div></div><div class="ctrl-sm" id="set-backend-btn">Change</div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5z"/></svg></div><div class="txt"><div class="t">Default source</div><div class="s">What a new recording captures</div></div>
+            <div class="seg" id="set-source-seg"><span data-src="mic">Mic</span><span data-src="system">System</span><span data-src="both">Both</span></div></div>
         </div>
       </div>
     </section>
