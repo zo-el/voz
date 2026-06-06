@@ -94,8 +94,25 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 ---
 
 ## Phase 3 — Power features
-20. ⬜ **GPU acceleration by default** (M) — auto-detect CUDA/Vulkan, ship the variant,
-    fall back to CPU; benchmark. *Why:* big speedup (e.g. RTX). *Dep:* build matrix.
+20. ⬜ **GPU acceleration — auto-detect + choose** (M) — the app should use the best
+    backend available and let the user override.
+    - **Auto-detect at runtime:** on launch, probe for a usable GPU and pick the
+      fastest backend, else CPU. Surface what was chosen in Settings.
+    - **Manual override (already designed):** the *Acceleration* control
+      (Auto / CPU / Vulkan / CUDA) maps to `config.transcription.accel` and the
+      whisper context params; "Auto" = the detection above. Wire it in the live app.
+    - **Distribution strategy** (this is the real constraint — a binary can only use
+      a backend that was *compiled in*, and a CUDA/Vulkan binary needs that runtime
+      present to load):
+      - **Primary release = Vulkan build** → auto-uses any GPU (NVIDIA/AMD/Intel)
+        and falls back to CPU; covers most desktops with one download. Declare
+        `libvulkan1` as a dep.
+      - **CUDA build = optional "max speed on NVIDIA" artifact** (vendor-locked,
+        needs the CUDA runtime).
+      - **CPU build = the always-runs fallback** for minimal/headless systems.
+    - Benchmark CPU vs Vulkan vs CUDA on a few models; show the live RTF in Settings.
+    *Why:* big speedup (often several×–10×), zero config for the user.
+    *Dep:* build matrix (#5/#6), `transcribe` accel param plumbing.
 21. ⬜ **Diarization for >2 speakers** (L) — beyond mic/monitor split: cluster speakers
     on the system stream (Parakeet sortformer / pyannote) for real meeting notes.
 22. ⬜ **Paste-at-cursor dictation** (M) — type into the focused app (Wayland
