@@ -35,7 +35,7 @@ recording + getting notes within a minute, with no terminal and no surprises.
    raw-only and say so (never a silent failure or scary error). Default for a fresh
    user with none installed = **raw-only**, with a one-click "enable AI cleanup"
    that explains the options. *Why:* a stranger won't have Claude Code authed.
-3. ⬜ **Bundle a model / bulletproof first-run download** (M) — ship a small default
+3. 🚧 **Bundle a model / bulletproof first-run download** (M) — ship a small default
    model in the package *or* download on first run with a real progress bar, resume
    on failure, checksum, and a model picker (Fast/Balanced/Accurate with sizes).
    *Why:* transcription must work offline immediately, no manual `curl`.

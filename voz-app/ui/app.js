@@ -337,16 +337,23 @@ $('set-update-btn').onclick = () => {
 setTimeout(() => checkUpdate(false), 2500); // quiet check shortly after launch
 
 // ---- models manager ----
+function modelTier(sizeMb) {
+  if (sizeMb < 150) return 'Fast';
+  if (sizeMb < 800) return 'Balanced';
+  return 'Accurate';
+}
 async function loadModels() {
   const list = $('models-list'); list.textContent = '';
   let models = [];
   try { models = await invoke('list_models'); } catch (e) {}
   for (const m of models) {
     const row = document.createElement('div'); row.className = 'row'; row.style.borderRadius = 'var(--radius-sm)';
+    row.dataset.model = m.id;
     const ico = document.createElement('div'); ico.className = 'ico'; ico.textContent = m.installed ? '✓' : '↓';
     const txt = document.createElement('div'); txt.className = 'txt';
     const t = document.createElement('div'); t.className = 't'; t.textContent = m.display;
-    const sub = document.createElement('div'); sub.className = 's'; sub.textContent = `${m.size_mb} MB${m.installed ? ' · installed' : (m.pinned ? '' : ' · unverified')}`;
+    const sub = document.createElement('div'); sub.className = 's';
+    sub.textContent = `${modelTier(m.size_mb)} · ${m.size_mb} MB${m.installed ? ' · installed' : (m.pinned ? '' : ' · unverified')}`;
     txt.append(t, sub);
     const btn = document.createElement('div'); btn.className = 'ctrl-sm';
     const cur = currentSettings?.transcription?.model === m.id;
@@ -355,7 +362,8 @@ async function loadModels() {
       if (m.installed) {
         if (!cur && currentSettings) { currentSettings.transcription.model = m.id; await persistSettings(); loadModels(); }
       } else if (m.pinned) {
-        btn.textContent = '…'; invoke('download_model', { id: m.id }).catch(() => {});
+        btn.textContent = '0%'; sub.textContent = `Downloading… (${m.size_mb} MB, resumes on retry)`;
+        invoke('download_model', { id: m.id }).catch(() => { btn.textContent = 'Download'; });
       }
     };
     row.append(ico, txt, btn); list.appendChild(row);
@@ -442,6 +450,13 @@ listen('voz://event', (e) => {
     case 'modelProgress': {
       const pct = Math.round((p.pct || 0) * 100);
       setPill(pct >= 100 ? 'Ready' : 'Model ' + pct + '%');
+      // update the specific model row in the manager, if open
+      const row = document.querySelector(`#models-list .row[data-model="${p.id}"]`);
+      if (row) {
+        const btn = row.querySelector('.ctrl-sm');
+        if (btn) btn.textContent = pct >= 100 ? 'Installed' : pct + '%';
+        if (pct >= 100) setTimeout(loadModels, 500); // refresh installed/Use state
+      }
       break;
     }
     case 'jobFailed': toast(friendlyError(p.error)); setPill('Ready'); break;
