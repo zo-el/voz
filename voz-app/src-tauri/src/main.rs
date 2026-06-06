@@ -149,6 +149,47 @@ fn get_history(query: Option<String>) -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Array(arr))
 }
 
+/// Pick a "type text into the focused app" tool for this session: `xdotool` on X11,
+/// `wtype`/`ydotool` on Wayland. Returns the binary + leading args (text appended).
+fn type_tool() -> Option<(&'static str, Vec<&'static str>)> {
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
+    let candidates: &[(&str, &[&str])] = if wayland {
+        &[("wtype", &[]), ("ydotool", &["type"])]
+    } else {
+        &[("xdotool", &["type", "--clearmodifiers", "--"])]
+    };
+    candidates
+        .iter()
+        .find(|(bin, _)| voz_core::refine_backends::cli_on_path(bin))
+        .map(|(bin, args)| (*bin, args.to_vec()))
+}
+
+/// Dictation: type `text` into whatever app is focused. Hides the panel first so
+/// focus returns to the target, then types after a short beat. The text is passed
+/// as an argv argument (no shell) — it's typed literally, never interpreted.
+#[tauri::command]
+fn type_at_cursor(text: String, app: tauri::AppHandle) -> Result<(), String> {
+    let Some((bin, args)) = type_tool() else {
+        return Err(
+            "No typing tool found — install xdotool (X11) or wtype/ydotool (Wayland).".into(),
+        );
+    };
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    if let Some(win) = app.get_webview_window("panel") {
+        let _ = win.hide();
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(350));
+        let _ = std::process::Command::new(bin)
+            .args(&args)
+            .arg(&text)
+            .spawn();
+    });
+    Ok(())
+}
+
 /// Human description of the acceleration backend the running binary will actually
 /// use (compiled backend + detected GPU). Shown under the Acceleration control.
 #[tauri::command]
@@ -673,7 +714,8 @@ fn main() {
             check_update,
             save_text_file,
             import_audio,
-            get_acceleration
+            get_acceleration,
+            type_at_cursor
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

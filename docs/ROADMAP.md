@@ -128,7 +128,7 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
     *Dep:* build matrix (#5/#6), `transcribe` accel param plumbing.
 21. ⬜ **Diarization for >2 speakers** (L) — beyond mic/monitor split: cluster speakers
     on the system stream (Parakeet sortformer / pyannote) for real meeting notes.
-22. ⬜ **Paste-at-cursor dictation** (M) — type into the focused app (Wayland
+22. 🚧 **Paste-at-cursor dictation** (M) — type into the focused app (Wayland
     wtype/ydotool, X11 xdotool); per-app modes.
 23. ⬜ **Modes / profiles** (M) — per-context bundles {hotkey + model + refine prompt +
     auto-activation by app}. The superwhisper/VoiceInk pattern.

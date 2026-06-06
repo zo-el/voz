@@ -358,6 +358,15 @@ $('note-copy').onclick = () => {
   if (body) navigator.clipboard.writeText(body).catch(() => {});
 };
 $('note-open').onclick = () => { if (currentNote?.refined_path) invoke('open_path', { path: currentNote.refined_path }).catch(() => {}); };
+$('note-type').onclick = async () => {
+  if (!currentNote) return;
+  // Dictation: type the plain transcript (strip "**Speaker:**" markers) into the
+  // app that was focused before Voz. The panel hides itself first.
+  const src = noteTab === 'refined' ? (currentNote.refined || '') : (currentNote.raw || '');
+  const plain = src.replace(/^\*\*[^:*]+:\*\*\s*/gm, '').replace(/^>\s.*$/gm, '').trim();
+  try { await invoke('type_at_cursor', { text: plain }); }
+  catch (e) { toast(String(e)); }
+};
 $('note-export').onclick = async () => {
   if (!currentNote) return;
   const body = noteTab === 'refined' ? currentNote.refined : currentNote.raw;
