@@ -572,6 +572,36 @@ impl Engine {
         n
     }
 
+    /// Import an existing audio/video file: decode it and run the same
+    /// transcribe → refine → save pipeline as a recording. Doesn't touch the
+    /// recorder, so it works even while recording. Treated as a single ("Me")
+    /// source since imported files aren't dual-stream.
+    ///
+    /// # Errors
+    /// Fails if the file can't be decoded or contains no audio.
+    pub fn import_file(&self, path: &std::path::Path) -> crate::Result<()> {
+        self.import_samples(crate::capture::decode_to_16k_mono(path)?)
+    }
+
+    /// Enqueue already-decoded 16 kHz mono audio (lets the app decode off the engine
+    /// lock, then call this for the quick enqueue).
+    ///
+    /// # Errors
+    /// Fails if `samples` is empty.
+    pub fn import_samples(&self, samples: Vec<f32>) -> crate::Result<()> {
+        if samples.is_empty() {
+            return Err(crate::Error::NoSource("no audio in file".into()));
+        }
+        let duration = (samples.len() / 16_000) as u64;
+        let audio = CapturedAudio {
+            mic: Some(samples),
+            system: None,
+        };
+        let spool_id = write_spool(Source::Mic, duration, &audio).ok();
+        self.spawn_processing(Source::Mic, duration, audio, spool_id);
+        Ok(())
+    }
+
     /// Enqueue a job for already-captured audio and spawn its worker.
     fn spawn_processing(
         &self,

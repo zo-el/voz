@@ -149,6 +149,31 @@ fn get_history(query: Option<String>) -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Array(arr))
 }
 
+/// Import an existing audio/video file and run it through the transcribe pipeline.
+/// Decoding (ffmpeg) runs on a background thread so it never holds the engine lock;
+/// the brief enqueue takes it. Progress shows via the normal job events.
+#[tauri::command]
+fn import_audio(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    std::thread::spawn(move || {
+        match voz_core::capture::decode_to_16k_mono(std::path::Path::new(&path)) {
+            Ok(samples) if !samples.is_empty() => {
+                if let Some(st) = app.try_state::<AppState>() {
+                    if let Ok(e) = st.engine.lock() {
+                        let _ = e.import_samples(samples);
+                    }
+                }
+            }
+            _ => {
+                let _ = app.emit(
+                    "voz://event",
+                    serde_json::json!({"type":"jobFailed","error":"import: couldn't decode audio (install ffmpeg for non-WAV files)"}),
+                );
+            }
+        }
+    });
+    Ok(())
+}
+
 fn source_from_str(s: &str) -> Source {
     match s {
         "Mic" => Source::Mic,
@@ -639,7 +664,8 @@ fn main() {
             get_diagnostics,
             open_log,
             check_update,
-            save_text_file
+            save_text_file,
+            import_audio
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

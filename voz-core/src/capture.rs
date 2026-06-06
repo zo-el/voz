@@ -267,6 +267,30 @@ pub fn write_wav_16k_mono(path: &std::path::Path, samples: &[f32]) -> crate::Res
     Ok(())
 }
 
+/// Decode an arbitrary audio/video file to 16 kHz mono f32 for import. Prefers
+/// `ffmpeg` (handles mp3/m4a/mp4/opus/flac/wav/…); without it, only WAV is
+/// supported via the native reader.
+///
+/// # Errors
+/// Returns [`crate::Error::Storage`] if the file can't be decoded.
+pub fn decode_to_16k_mono(path: &std::path::Path) -> crate::Result<Vec<f32>> {
+    let ffmpeg = Command::new("ffmpeg")
+        .args(["-v", "error", "-i"])
+        .arg(path)
+        .args(["-ac", "1", "-ar", "16000", "-f", "f32le", "-"])
+        .output();
+    if let Ok(out) = ffmpeg {
+        if out.status.success() && !out.stdout.is_empty() {
+            let usable = out.stdout.len() - (out.stdout.len() % 4);
+            return Ok(pcm_f32le_to_samples(&out.stdout[..usable]));
+        }
+    }
+    // Fallback (no ffmpeg): the native WAV reader handles .wav only.
+    read_wav_16k_mono(path).map_err(|_| {
+        crate::Error::Storage("could not decode audio (install ffmpeg for non-WAV files)".into())
+    })
+}
+
 /// Read any WAV file and return 16 kHz mono f32 samples (for file import / tests).
 ///
 /// # Errors
@@ -303,6 +327,26 @@ mod tests {
     fn default_sink_does_not_panic() {
         // May be Some or None depending on the host; must never panic.
         let _ = default_sink();
+    }
+
+    #[test]
+    fn decode_to_16k_mono_handles_wav() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("voz-decode-{}.wav", std::process::id()));
+        let samples: Vec<f32> = (0..16_000)
+            .map(|i| ((i as f32) / 100.0).sin() * 0.3)
+            .collect();
+        write_wav_16k_mono(&path, &samples).unwrap();
+        // Works via ffmpeg if present, else the native WAV fallback — both yield
+        // ~16k samples for a 1 s 16 kHz mono clip.
+        let decoded = decode_to_16k_mono(&path).unwrap();
+        assert!(!decoded.is_empty());
+        assert!(
+            (decoded.len() as i64 - 16_000).abs() < 256,
+            "len {}",
+            decoded.len()
+        );
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

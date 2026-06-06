@@ -131,7 +131,7 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
     wtype/ydotool, X11 xdotool); per-app modes.
 23. ⬜ **Modes / profiles** (M) — per-context bundles {hotkey + model + refine prompt +
     auto-activation by app}. The superwhisper/VoiceInk pattern.
-24. ⬜ **Watch-folder / file import / batch** (M) — drop audio/video files or watch a
+24. 🚧 **Watch-folder / file import / batch** (M) — drop audio/video files or watch a
     folder; transcribe meetings recorded elsewhere.
 25. ✅ **Full-text search + history power tools** (S) — search all transcripts, filter
     by source/speaker/date, bulk export (SRT/VTT/TXT/MD).

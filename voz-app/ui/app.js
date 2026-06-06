@@ -188,6 +188,16 @@ $('searchbox').oninput = () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => loadHistory($('searchbox').value), 180);
 };
+// import an existing audio/video file -> same transcribe pipeline
+$('hist-import').onclick = async () => {
+  try {
+    const path = await window.__TAURI__.dialog.open({
+      multiple: false,
+      filters: [{ name: 'Audio / Video', extensions: ['wav', 'mp3', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'mp4', 'mkv', 'webm', 'mov'] }],
+    });
+    if (path) { toast('Importing… transcript will appear here'); await invoke('import_audio', { path }); }
+  } catch (e) { toast('Import failed'); }
+};
 
 // ---- settings ----
 let currentSettings = null;
