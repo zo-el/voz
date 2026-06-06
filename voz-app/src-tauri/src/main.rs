@@ -536,6 +536,30 @@ fn toggle_panel(app: &tauri::AppHandle) {
     }
 }
 
+/// Build the tray icon + menu. Best-effort: on a desktop with no StatusNotifier
+/// host (e.g. GNOME without an AppIndicator extension) this returns an error, which
+/// the caller logs — the window + global hotkey keep the app fully usable.
+fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "show", "Show / hide Voz", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Voz", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let mut builder = TrayIconBuilder::with_id("voz-tray")
+        .tooltip("Voz")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => toggle_panel(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, _event| toggle_panel(tray.app_handle()));
+    if let Some(icon) = app.default_window_icon().cloned() {
+        builder = builder.icon(icon);
+    }
+    builder.build(app)?;
+    Ok(())
+}
+
 fn tray_icon_for(app: &tauri::AppHandle, ts: TrayState) -> Option<Image<'static>> {
     let name = match ts.badge() {
         Some("rec") => "tray-rec.png",
@@ -730,24 +754,15 @@ fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            // tray icon. On GNOME the AppIndicator extension renders this and
-            // left-click activation is unreliable, so we attach a right-click menu
-            // (Show/Hide/Quit) and also toggle on left-click where supported.
-            let show = MenuItem::with_id(app, "show", "Show / hide Voz", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit Voz", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
-            let _tray = TrayIconBuilder::with_id("voz-tray")
-                .icon(app.default_window_icon().cloned().unwrap())
-                .tooltip("Voz")
-                .menu(&menu)
-                .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => toggle_panel(app),
-                    "quit" => app.exit(0),
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, _event| toggle_panel(tray.app_handle()))
-                .build(app)?;
+            // Tray icon (best-effort). On GNOME the AppIndicator extension renders
+            // this and left-click activation is unreliable, so we attach a menu
+            // (Show/Hide/Quit) and also toggle on left-click where supported. If no
+            // tray host is present the app stays fully usable via window + hotkey.
+            if let Err(e) = build_tray(&app.handle()) {
+                log::warn!(
+                    "system tray unavailable ({e}); the window + global hotkey still work. On GNOME, enable an AppIndicator/StatusNotifier extension to get the tray."
+                );
+            }
 
             // forward engine events to the webview + tray
             std::thread::spawn(move || pump_events(handle, rx));

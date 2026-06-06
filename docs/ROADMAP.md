@@ -53,7 +53,7 @@ recording + getting notes within a minute, with no terminal and no surprises.
    `main` with a bumped version auto-builds the `.deb` + AppImage, gates on the core
    tests, and publishes a `v<version>` GitHub Release with checksums. ⬜ Remaining:
    add Flatpak to the matrix, a slow test lane, and artifact signing.
-7. ⬜ **GNOME tray reliability + docs** (S) — verify the AppIndicator path across
+7. ✅ **GNOME tray reliability + docs** (S) — verify the AppIndicator path across
    GNOME versions; detect a missing/disabled extension and guide the user; keep the
    app fully usable via window + hotkey without the tray.
 8. 🚧 **Accessibility pass** (M) — ✅ reduced-motion, ✅ keyboard path (Space=record,
