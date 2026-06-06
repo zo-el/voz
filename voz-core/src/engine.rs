@@ -17,7 +17,7 @@ use crate::jobs::{JobId, JobQueue, JobState};
 use crate::model::{NoteMeta, RefineStyle, Source};
 use crate::pipeline::{transcribe_and_attribute, CapturedAudio};
 use crate::refine::lossless_check;
-use crate::refine_backends::build_refiner;
+use crate::refine_backends::{backend_available, build_refiner};
 use crate::store::{audio_path, note_basename, raw_basename, raw_note, refined_note, save_notes};
 use crate::transcribe::Transcriber;
 use std::path::PathBuf;
@@ -245,8 +245,12 @@ fn process_job(
         }
     }
 
-    // --- refine (optional; failure keeps the raw note) ---
-    let refiner = build_refiner(&ctx.refine, ctx.api_key.clone());
+    // --- refine (optional; unavailable backend or failure keeps the raw note) ---
+    let refiner = if backend_available(&ctx.refine, ctx.api_key.is_some()) {
+        build_refiner(&ctx.refine, ctx.api_key.clone())
+    } else {
+        None // CLI not installed / no key -> raw-only, no scary error
+    };
     let backend_name = refiner
         .as_ref()
         .map_or("None".to_string(), |r| r.name().to_string());

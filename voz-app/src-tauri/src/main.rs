@@ -176,6 +176,24 @@ fn tray_icon_for(app: &tauri::AppHandle, ts: TrayState) -> Option<Image<'static>
     Image::from_path(path).ok()
 }
 
+/// On a brand-new install (no config yet), pick a refine backend that actually
+/// works on this machine so a stranger isn't met with failing AI cleanup: if the
+/// default (Claude Code) CLI isn't installed, start in raw-only mode. Persists the
+/// choice so it's only decided once.
+fn first_run_defaults(mut settings: Settings) -> Settings {
+    use voz_core::config::RefineBackend;
+    if Settings::config_path().exists() {
+        return settings; // user already has a config; respect it
+    }
+    if settings.refine.backend == RefineBackend::ClaudeCode
+        && !voz_core::refine_backends::cli_on_path("claude")
+    {
+        settings.refine.backend = RefineBackend::None;
+    }
+    let _ = settings.save();
+    settings
+}
+
 /// Load the transcriber: the configured model if installed, else `base.en`.
 fn load_transcriber(settings: &Settings) -> Arc<dyn Transcriber> {
     let id = &settings.transcription.model;
@@ -269,7 +287,7 @@ fn pump_events(app: tauri::AppHandle, rx: Receiver<Event>) {
 }
 
 fn main() {
-    let settings = Settings::load();
+    let settings = first_run_defaults(Settings::load());
     let transcriber = load_transcriber(&settings);
     let (tx, rx) = channel::<Event>();
     let engine = Engine::new(settings, transcriber, History::default_path(), tx);

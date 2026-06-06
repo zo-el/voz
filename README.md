@@ -49,6 +49,8 @@ with `cargo test -p voz-core --features engine`. Full build notes: `BUILD.md`.
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model + controls (XSS, subprocess, secrets, sandbox, supply chain) |
 | [`docs/TESTING.md`](docs/TESTING.md) | Test pyramid, tooling, CI lanes, coverage gate, QA matrix |
 | [`docs/PLAN.md`](docs/PLAN.md) | Scope, milestones (M0–M7), Definition of Done, decisions, open questions |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phased roadmap from v0.1.0 → production-ready → power features |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
 | [`design/mockups/`](design/mockups) | High-fidelity HTML/CSS mockups (open in a browser) |
 | [`design/out/`](design/out) | Rendered PNGs of every screen |
 

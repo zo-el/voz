@@ -19,6 +19,26 @@ use wait_timeout::ChildExt;
 const CLI_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
 
+/// True if `bin` is an executable on `$PATH` (used to detect CLI backends without
+/// spawning them).
+#[must_use]
+pub fn cli_on_path(bin: &str) -> bool {
+    std::env::var_os("PATH")
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(bin).is_file()))
+}
+
+/// Whether the selected backend can actually run right now (CLI installed / key
+/// set). Lets the app fall back gracefully instead of failing every recording.
+#[must_use]
+pub fn backend_available(cfg: &RefineCfg, has_api_key: bool) -> bool {
+    match cfg.backend {
+        RefineBackend::None | RefineBackend::Ollama => true, // Ollama checked at call time
+        RefineBackend::ClaudeCode => cli_on_path("claude"),
+        RefineBackend::Codex => cli_on_path("codex"),
+        RefineBackend::ClaudeApi => has_api_key,
+    }
+}
+
 /// Build the right refiner from settings. Returns `None` for `RefineBackend::None`
 /// (raw-only) — the pipeline then saves just the raw note.
 #[must_use]
@@ -342,5 +362,21 @@ mod tests {
     fn claude_api_requires_key() {
         let r = ClaudeApiRefiner::new(String::new());
         assert!(r.refine(&tr("x"), &RefineStyle::Adaptive).is_err());
+    }
+
+    #[test]
+    fn cli_detection_and_availability() {
+        assert!(cli_on_path("sh")); // present on any unix
+        assert!(!cli_on_path("definitely-not-a-real-binary-xyz"));
+        let mut cfg = RefineCfg {
+            backend: RefineBackend::None,
+            ollama_model: String::new(),
+            style: RefineStyle::Adaptive,
+            lossless_guard: true,
+        };
+        assert!(backend_available(&cfg, false)); // None always available
+        cfg.backend = RefineBackend::ClaudeApi;
+        assert!(!backend_available(&cfg, false)); // no key
+        assert!(backend_available(&cfg, true)); // key present
     }
 }
