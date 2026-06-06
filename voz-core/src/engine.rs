@@ -54,6 +54,105 @@ struct JobCtx {
     api_key: Option<String>,
     model_label: String,
     history_path: PathBuf,
+    /// Spool id whose audio backs this job; cleared once the job fully succeeds so
+    /// an interrupted job can be recovered on the next launch.
+    spool_id: Option<String>,
+}
+
+// ----- crash-recovery spool ---------------------------------------------------
+// On Stop, the captured audio is written to a spool dir before the worker starts;
+// the worker removes it only after the notes are saved. On launch, `recover()`
+// re-processes any spooled audio left by a crash/quit mid-job.
+
+fn spool_dir() -> PathBuf {
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join("voz").join("spool")
+}
+
+fn now_nanos() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0)
+}
+
+fn source_tag(s: Source) -> &'static str {
+    match s {
+        Source::Mic => "mic",
+        Source::System => "system",
+        Source::Both => "both",
+    }
+}
+
+fn source_from_tag(s: &str) -> Source {
+    match s {
+        "mic" => Source::Mic,
+        "system" => Source::System,
+        _ => Source::Both,
+    }
+}
+
+/// Write captured audio + metadata to the spool; returns the spool id.
+fn write_spool(source: Source, duration: u64, audio: &CapturedAudio) -> crate::Result<String> {
+    let id = format!("{}-{}", now_nanos(), std::process::id());
+    let dir = spool_dir();
+    std::fs::create_dir_all(&dir)?;
+    if let Some(mic) = &audio.mic {
+        crate::capture::write_wav_16k_mono(&dir.join(format!("{id}.mic.wav")), mic)?;
+    }
+    if let Some(sys) = &audio.system {
+        crate::capture::write_wav_16k_mono(&dir.join(format!("{id}.sys.wav")), sys)?;
+    }
+    let meta = serde_json::json!({ "source": source_tag(source), "duration": duration });
+    crate::store::write_atomic(&dir.join(format!("{id}.json")), &meta.to_string())?;
+    Ok(id)
+}
+
+fn clear_spool(id: &str) {
+    let dir = spool_dir();
+    for suffix in [".mic.wav", ".sys.wav", ".json"] {
+        let _ = std::fs::remove_file(dir.join(format!("{id}{suffix}")));
+    }
+}
+
+/// Load any spooled (unfinished) recordings left by a previous run.
+fn recover_spool() -> Vec<(String, Source, u64, CapturedAudio)> {
+    let dir = spool_dir();
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(String::from) else {
+            continue;
+        };
+        let (mut source, mut duration) = (Source::Both, 0u64);
+        if let Ok(txt) = std::fs::read_to_string(&path) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
+                source =
+                    source_from_tag(v.get("source").and_then(|s| s.as_str()).unwrap_or("both"));
+                duration = v
+                    .get("duration")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+            }
+        }
+        let mic = crate::capture::read_wav_16k_mono(&dir.join(format!("{id}.mic.wav"))).ok();
+        let sys = crate::capture::read_wav_16k_mono(&dir.join(format!("{id}.sys.wav"))).ok();
+        if mic.is_none() && sys.is_none() {
+            clear_spool(&id);
+            continue;
+        }
+        out.push((id, source, duration, CapturedAudio { mic, system: sys }));
+    }
+    out
 }
 
 fn emit(events: &Sender<Event>, ev: Event) {
@@ -217,6 +316,11 @@ fn process_job(
     }
     let _ = refined_path;
 
+    // job fully succeeded — drop its recovery spool.
+    if let Some(id) = &ctx.spool_id {
+        clear_spool(id);
+    }
+
     emit(
         &events,
         Event::RefineDone {
@@ -373,6 +477,8 @@ impl Engine {
     }
 
     /// Stop recording and enqueue a background job; the recorder returns to Idle.
+    /// The captured audio is spooled to disk first, so a crash mid-processing can
+    /// be recovered on the next launch (see [`Engine::recover`]).
     ///
     /// # Errors
     /// Fails if not recording.
@@ -383,6 +489,30 @@ impl Engine {
         let source = self.started_source;
         emit(&self.events, Event::RecState(self.recorder.state()));
 
+        let spool_id = write_spool(source, duration, &audio).ok();
+        self.spawn_processing(source, duration, audio, spool_id);
+        Ok(())
+    }
+
+    /// Re-process any recordings spooled by a previous run that crashed/quit
+    /// mid-job. Call once at startup. Returns how many jobs were recovered.
+    pub fn recover(&mut self) -> usize {
+        let pending = recover_spool();
+        let n = pending.len();
+        for (id, source, duration, audio) in pending {
+            self.spawn_processing(source, duration, audio, Some(id));
+        }
+        n
+    }
+
+    /// Enqueue a job for already-captured audio and spawn its worker.
+    fn spawn_processing(
+        &self,
+        source: Source,
+        duration: u64,
+        audio: CapturedAudio,
+        spool_id: Option<String>,
+    ) {
         let job = self
             .queue
             .lock()
@@ -395,6 +525,7 @@ impl Engine {
             api_key: self.api_key.clone(),
             model_label: format!("whisper {}", self.settings.transcription.model),
             history_path: self.history_path.clone(),
+            spool_id,
         };
         let (tx, q, t) = (
             self.events.clone(),
@@ -405,12 +536,16 @@ impl Engine {
         std::thread::spawn(move || {
             process_job(job, audio, duration, source, ctx, t, q, tx);
         });
-        Ok(())
     }
 
     /// Replace settings (e.g. after the user edits them).
     pub fn update_settings(&mut self, settings: Settings) {
         self.settings = settings;
+    }
+
+    /// Swap the transcriber (e.g. after a model finishes downloading at first run).
+    pub fn set_transcriber(&mut self, transcriber: Arc<dyn Transcriber>) {
+        self.transcriber = transcriber;
     }
 
     /// Style currently configured (for re-refine).
@@ -476,6 +611,7 @@ mod tests {
             api_key: None,
             model_label: "mock".into(),
             history_path: dir.join("history.sqlite"),
+            spool_id: None,
         };
         let audio = CapturedAudio {
             mic: Some(vec![0.0; 4]),
@@ -520,5 +656,33 @@ mod tests {
         let h = History::open(&dir.join("history.sqlite")).unwrap();
         assert_eq!(h.recent(10).unwrap().len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn spool_round_trips_and_clears() {
+        // Use an isolated HOME so the spool dir doesn't collide with a real one.
+        let home = std::env::temp_dir().join(format!("voz-spool-home-{}", now_nanos()));
+        std::fs::create_dir_all(&home).unwrap();
+        std::env::set_var("XDG_DATA_HOME", &home);
+
+        let audio = CapturedAudio {
+            mic: Some(vec![0.25; 1600]),
+            system: Some(vec![-0.25; 1600]),
+        };
+        let id = write_spool(Source::Both, 7, &audio).unwrap();
+
+        let recovered = recover_spool();
+        assert_eq!(recovered.len(), 1);
+        let (rid, src, dur, ra) = &recovered[0];
+        assert_eq!(rid, &id);
+        assert_eq!(*src, Source::Both);
+        assert_eq!(*dur, 7);
+        assert_eq!(ra.mic.as_ref().unwrap().len(), 1600);
+        assert!(ra.system.is_some());
+
+        clear_spool(&id);
+        assert!(recover_spool().is_empty());
+        let _ = std::fs::remove_dir_all(&home);
+        std::env::remove_var("XDG_DATA_HOME");
     }
 }

@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, State};
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use voz_core::engine::Engine;
 use voz_core::event::{Event, TrayState};
 use voz_core::history::History;
@@ -186,6 +187,52 @@ impl Transcriber for NullTranscriber {
     }
 }
 
+/// Zero-setup model bootstrap: if the configured model and `base.en` are both
+/// absent, download `base.en` (pinned + SHA-256 verified), then hot-swap a real
+/// transcriber into the engine. Emits `modelProgress` events for the UI.
+fn ensure_model(app: tauri::AppHandle) {
+    let configured = Settings::default().transcription.model;
+    if voz_core::models::is_installed(&configured) || voz_core::models::is_installed("base.en") {
+        return; // a model is present; the startup load already used it
+    }
+    let p = app.clone();
+    let emit_pct = move |pct: f32| {
+        let _ = p.emit(
+            "voz://event",
+            serde_json::json!({"type":"modelProgress","id":"base.en","pct":pct}),
+        );
+    };
+    emit_pct(0.0);
+    let p2 = app.clone();
+    let res = voz_core::models::download("base.en", false, move |done, total| {
+        let pct = if total > 0 {
+            done as f32 / total as f32
+        } else {
+            0.0
+        };
+        let _ = p2.emit(
+            "voz://event",
+            serde_json::json!({"type":"modelProgress","id":"base.en","pct":pct}),
+        );
+    });
+    match res.and_then(|path| WhisperTranscriber::load(&path, Some("en".into()))) {
+        Ok(t) => {
+            if let Some(state) = app.try_state::<AppState>() {
+                if let Ok(mut e) = state.engine.lock() {
+                    e.set_transcriber(Arc::new(t));
+                }
+            }
+            emit_pct(1.0);
+        }
+        Err(e) => {
+            let _ = app.emit(
+                "voz://event",
+                serde_json::json!({"type":"jobFailed","error":format!("model download: {e}")}),
+            );
+        }
+    }
+}
+
 fn pump_events(app: tauri::AppHandle, rx: Receiver<Event>) {
     let tray_id = "voz-tray";
     for ev in rx {
@@ -206,6 +253,27 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            // Global push-to-toggle hotkey. Works on X11 (GNOME); on Wayland/COSMIC
+            // the compositor must grant it (GNOME 48 GlobalShortcuts portal), and
+            // COSMIC's portal doesn't implement it yet — fall back to a custom
+            // Settings shortcut there. See docs/RESEARCH.md §4.
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Some(state) = app.try_state::<AppState>() {
+                            if let Ok(mut e) = state.engine.lock() {
+                                let _ = if matches!(e.state(), voz_core::RecState::Idle) {
+                                    e.start(voz_core::model::Source::Both)
+                                } else {
+                                    e.stop()
+                                };
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .manage(AppState {
             engine: Mutex::new(engine),
         })
@@ -241,6 +309,28 @@ fn main() {
 
             // forward engine events to the webview + tray
             std::thread::spawn(move || pump_events(handle, rx));
+
+            // recover any recordings spooled by a previous run that crashed mid-job
+            if let Some(state) = app.try_state::<AppState>() {
+                if let Ok(mut e) = state.engine.lock() {
+                    let n = e.recover();
+                    if n > 0 {
+                        eprintln!("recovered {n} unfinished recording(s)");
+                    }
+                }
+            }
+
+            // register the global record hotkey (best-effort; logs on Wayland).
+            if let Err(e) = app.global_shortcut().register("Ctrl+Super+Space") {
+                eprintln!(
+                    "global hotkey unavailable ({e}); use the tray icon or a compositor shortcut"
+                );
+            }
+
+            // zero-setup: if no model is installed, fetch the default in the
+            // background and hot-swap it into the engine (with progress events).
+            let dl_handle = app.handle().clone();
+            std::thread::spawn(move || ensure_model(dl_handle));
 
             if let Some(win) = app.get_webview_window("panel") {
                 let _ = win.show();

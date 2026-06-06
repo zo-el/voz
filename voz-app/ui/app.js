@@ -163,6 +163,12 @@ listen('voz://event', (e) => {
       break;
     }
     case 'saved': setPill('Saved', ''); break;
+    case 'modelProgress': {
+      const pct = Math.round((p.pct || 0) * 100);
+      setPill(pct >= 100 ? 'Ready' : 'Model ' + pct + '%');
+      break;
+    }
+    case 'jobFailed': setPill('Error'); break;
     case 'notify': /* desktop notification handled natively later */ break;
   }
 });
