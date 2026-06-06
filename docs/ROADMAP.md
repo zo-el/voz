@@ -59,13 +59,13 @@ recording + getting notes within a minute, with no terminal and no surprises.
 8. 🚧 **Accessibility pass** (M) — full keyboard path, focus order, ARIA labels,
    screen-reader test, contrast/AA, reduced-motion (✅ already), large-text. *Why:*
    production apps are accessible.
-9. ⬜ **Logging, diagnostics, crash safety** (S) — local rotated logs (no telemetry),
+9. ✅ **Logging, diagnostics, crash safety** (S) — local rotated logs (no telemetry),
    a "copy diagnostics" button (redacted), panic-safe worker threads. *Why:*
    supportable without phoning home.
 10. ⬜ **Cross-distro QA matrix** (M) — Pop!_OS GNOME (X11), Ubuntu, Fedora
     Workstation, COSMIC; audio routes (built-in/USB/Bluetooth/speakers/headphones);
     CPU + GPU. *Why:* "works on my machine" ≠ shippable.
-11. ⬜ **Updates** (M) — Flathub auto-updates; for `.deb`/AppImage, an in-app update
+11. ✅ **Updates** (M) — Flathub auto-updates; for `.deb`/AppImage, an in-app update
     check against the GitHub Release feed (signed; never executes fetched code).
 
 **Exit criterion for "production-ready":** items 1–10 done, the Definition of Done
@@ -77,13 +77,17 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 12. ✅ **In-app note detail view** (M) — open a History note inside the panel: Raw/
     Refined toggle, Copy, Open in Obsidian, **Re-refine** with another style, delete.
     (Today: opens the file externally.)
-13. ⬜ **True tray-anchored dropdown** (L) — X11: position the frameless panel under
+13. ✅ **True tray-anchored dropdown** (L) — X11: position the frameless panel under
     the tray icon; Wayland/COSMIC: a native applet (see Phase 4). *Why:* the original
     "the tray icon *is* the app" vision. *Dep:* per-desktop positioning.
 14. ⬜ **Global hotkey everywhere** (M) — GNOME 48 GlobalShortcuts portal; COSMIC
     custom-shortcut fallback; push-to-talk *and* toggle. (Today: X11 only.)
-15. ⬜ **Live streaming partials** (L) — VAD (Silero) + chunking so text appears while
-    you speak, finalizing on silence. *Why:* feels instant. *Dep:* VAD integration.
+15. ✅ **Live streaming partials** (L) — text appears in a "◉ LIVE" box while you
+    record; the authoritative transcript is produced on stop. **Better path taken:** a
+    background worker re-transcribes the growing buffer every ~3s (single-flight,
+    self-throttling, frozen past ~2.5 min) instead of Silero VAD chunking — simpler,
+    no extra model, correct because the final transcript is the source of truth.
+    *Future:* VAD-gated incremental chunks for long meetings.
 16. 🚧 **Real waveform + capture polish** (S) — ✅ waveform driven by real capture
     level (`get_level` polled live) + live elapsed timer. ⬜ Remaining: per-source
     (mic vs system) split visualization, smoother pause/resume, live word count.
