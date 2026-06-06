@@ -37,6 +37,39 @@ cargo install tauri-cli --version '^2'        # or: npm i -D @tauri-apps/cli
 > In a Claude Code session you can run any of these yourself with a leading `!`,
 > e.g. `! sudo apt-get install -y libasound2-dev ...`, so the output lands here.
 
+## GPU build (CUDA / Vulkan)
+The default build is **CPU** (runs anywhere). For GPU acceleration, build with a
+backend feature — the app's `Acceleration` setting (`Auto`/`CPU`/`Vulkan`/`CUDA`)
+then controls `use_gpu` at runtime.
+
+**CUDA (NVIDIA, fastest).** Needs CUDA **12.x** (the toolkit whisper.cpp compiles
+against must match the `libcudart` it links). On a system that *also* has the old
+distro `nvidia-cuda-toolkit` (11.5) installed, the linker can grab the wrong
+`libcudart` and fail with `undefined symbol: cudaGetDeviceProperties_v2` (a CUDA-12
+symbol). Force the 12.x libs first:
+
+```bash
+export CUDA_PATH=/usr/local/cuda-12.6
+export PATH="$CUDA_PATH/bin:$PATH"
+export CUDACXX="$CUDA_PATH/bin/nvcc"
+export LD_LIBRARY_PATH="$CUDA_PATH/lib64"          # runtime: find libcudart.so.12
+export RUSTFLAGS="-L native=$CUDA_PATH/lib64"      # link-time: 12.x before /usr/lib's 11.5
+cargo tauri build --bundles deb --features cuda    # or: cargo build --features cuda
+```
+
+The resulting `.deb` only runs on machines with an NVIDIA GPU + the CUDA 12 runtime.
+
+**Vulkan (any GPU, portable).** Cross-vendor (NVIDIA/AMD/Intel), CPU fallback; the
+best general-purpose GPU build. Needs the Vulkan SDK/headers and `glslc`:
+
+```bash
+sudo apt-get install -y libvulkan-dev glslc spirv-tools
+cargo tauri build --bundles deb --features vulkan
+```
+
+Verify the GPU is actually used: run a transcription and check `nvidia-smi`
+(`--query-compute-apps`) shows the process holding GPU memory.
+
 ## Feature flags (voz-core)
 Native backends are gated so the core stays buildable without system deps:
 

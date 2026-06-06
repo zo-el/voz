@@ -94,13 +94,18 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 ---
 
 ## Phase 3 — Power features
-20. ⬜ **GPU acceleration — auto-detect + choose** (M) — the app should use the best
+20. 🚧 **GPU acceleration — auto-detect + choose** (M) — the app should use the best
     backend available and let the user override.
-    - **Auto-detect at runtime:** on launch, probe for a usable GPU and pick the
-      fastest backend, else CPU. Surface what was chosen in Settings.
-    - **Manual override (already designed):** the *Acceleration* control
-      (Auto / CPU / Vulkan / CUDA) maps to `config.transcription.accel` and the
-      whisper context params; "Auto" = the detection above. Wire it in the live app.
+    - ✅ **Manual override wired:** the live *Acceleration* control
+      (Auto / CPU / Vulkan / CUDA) maps to `config.transcription.accel` →
+      `WhisperTranscriber::load(use_gpu)`; changing it hot-reloads the transcriber.
+    - ✅ **CUDA build verified:** the full app, built `--features cuda` against CUDA
+      12.6, loads the model onto an NVIDIA RTX 3080 (held ~361 MiB VRAM) and
+      transcribes correctly. Recipe (incl. the 11.5-vs-12.6 `libcudart` fix) in
+      `BUILD.md`.
+    - ⬜ **Auto-detect at runtime:** "Auto" currently means use_gpu=true (ggml picks
+      a device, else CPU). Still to add: probe + *show the chosen backend* in
+      Settings, and a graceful "no GPU → CPU" notice.
     - **Distribution strategy** (this is the real constraint — a binary can only use
       a backend that was *compiled in*, and a CUDA/Vulkan binary needs that runtime
       present to load):
