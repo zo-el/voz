@@ -91,7 +91,7 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 16. 🚧 **Real waveform + capture polish** (S) — ✅ waveform driven by real capture
     level (`get_level` polled live) + live elapsed timer. ⬜ Remaining: per-source
     (mic vs system) split visualization, smoother pause/resume, live word count.
-17. 🚧 **Editable refinement prompt + style presets UI** (S) — Adaptive/Meeting/Memo/
+17. ✅ **Editable refinement prompt + style presets UI** (S) — Adaptive/Meeting/Memo/
     Custom, editable in Settings, with a live preview. *Dep:* none.
 18. ✅ **Model management UI** (M) — list/download/switch/delete models with sizes and
     a CPU/Vulkan/CUDA backend selector; show disk usage. *Dep:* #3.

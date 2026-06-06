@@ -200,4 +200,23 @@ mod tests {
         let p = RefineStyle::Custom("just bullet points".into()).prompt();
         assert_eq!(p, "just bullet points");
     }
+
+    // The Settings UI persists RefineStyle as JSON across the Tauri bridge; pin the
+    // shape the front-end relies on (unit variants = bare strings; Custom = object).
+    #[cfg(feature = "refine")]
+    #[test]
+    fn refine_style_json_round_trip() {
+        let custom = RefineStyle::Custom("bullets only".into());
+        let json = serde_json::to_string(&custom).unwrap();
+        assert_eq!(json, r#"{"custom":"bullets only"}"#);
+        assert_eq!(serde_json::from_str::<RefineStyle>(&json).unwrap(), custom);
+        assert_eq!(
+            serde_json::to_string(&RefineStyle::Meeting).unwrap(),
+            r#""meeting""#
+        );
+        assert_eq!(
+            serde_json::from_str::<RefineStyle>(r#""adaptive""#).unwrap(),
+            RefineStyle::Adaptive
+        );
+    }
 }

@@ -203,7 +203,7 @@ async function loadSettings() {
   $('set-backend').textContent = BACKEND_LABEL[s.refine?.backend] ?? (s.refine?.backend ?? '—');
   segSet('set-source-seg', s.sources?.default_source);
   segSet('set-accel-seg', s.transcription?.accel);
-  segSet('set-style-seg', typeof s.refine?.style === 'string' ? s.refine.style : 'adaptive');
+  reflectStyle(s.refine?.style);
   $('set-keepaudio').classList.toggle('on', !!s.general?.keep_audio);
   // reflect the default source on the Record screen too (while idle)
   if (!recording && s.sources?.default_source) {
@@ -231,9 +231,31 @@ document.querySelectorAll('#set-source-seg span').forEach(sp => sp.onclick = asy
 document.querySelectorAll('#set-accel-seg span').forEach(sp => sp.onclick = async () => {
   if (!currentSettings) return; currentSettings.transcription.accel = sp.dataset.a; await persistSettings();
 });
+const DEFAULT_CUSTOM_PROMPT = 'Summarize the transcript as clear bullet points, keeping every name, number, and decision.';
+function reflectStyle(style) {
+  const isCustom = style && typeof style === 'object' && 'custom' in style;
+  segSet('set-style-seg', isCustom ? 'custom' : (typeof style === 'string' ? style : 'adaptive'));
+  $('set-custom-row').style.display = isCustom ? 'block' : 'none';
+  if (isCustom) $('set-custom-prompt').value = style.custom || '';
+}
 document.querySelectorAll('#set-style-seg span').forEach(sp => sp.onclick = async () => {
-  if (!currentSettings) return; currentSettings.refine.style = sp.dataset.st; await persistSettings();
+  if (!currentSettings) return;
+  if (sp.dataset.st === 'custom') {
+    const text = ($('set-custom-prompt').value || '').trim() || DEFAULT_CUSTOM_PROMPT;
+    currentSettings.refine.style = { custom: text };
+  } else {
+    currentSettings.refine.style = sp.dataset.st;
+  }
+  reflectStyle(currentSettings.refine.style);
+  await persistSettings();
 });
+$('set-custom-prompt').onchange = async () => {
+  if (!currentSettings) return;
+  const text = ($('set-custom-prompt').value || '').trim();
+  if (!text) return; // keep the last good prompt rather than saving an empty one
+  currentSettings.refine.style = { custom: text };
+  await persistSettings();
+};
 $('set-keepaudio').onclick = async () => {
   if (!currentSettings) return; currentSettings.general.keep_audio = !currentSettings.general.keep_audio; await persistSettings();
 };

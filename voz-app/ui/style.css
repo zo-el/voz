@@ -264,6 +264,11 @@ body.stage {
 .choice.sel .radio { border-color: var(--accent-2); background: radial-gradient(circle, var(--accent-2) 0 5px, transparent 6px); }
 
 .stack { display: flex; flex-direction: column; gap: 8px; }
+.stack > #set-custom-row { align-self: stretch; width: 100%; }
+.custom-prompt { display: block; box-sizing: border-box; width: 100%; resize: vertical;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 12px; line-height: 1.45; outline: none; }
+.custom-prompt:focus { border-color: var(--accent-2); }
 .divider { height: 1px; background: var(--border); margin: 16px 0; }
 
 /* history list */

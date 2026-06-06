@@ -103,7 +103,11 @@
             <div class="seg" id="set-accel-seg"><span data-a="auto">Auto</span><span data-a="cpu">CPU</span><span data-a="vulkan">Vulkan</span><span data-a="cuda">CUDA</span></div></div>
           <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div><div class="txt"><div class="t">Refine backend</div><div class="s" id="set-backend">—</div></div><div class="ctrl-sm" id="set-backend-btn">Change</div></div>
           <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg></div><div class="txt"><div class="t">Refinement style</div><div class="s">Note shape</div></div>
-            <div class="seg" id="set-style-seg"><span data-st="adaptive">Adaptive</span><span data-st="meeting">Meeting</span><span data-st="memo">Memo</span></div></div>
+            <div class="seg" id="set-style-seg"><span data-st="adaptive">Adaptive</span><span data-st="meeting">Meeting</span><span data-st="memo">Memo</span><span data-st="custom">Custom</span></div></div>
+          <div id="set-custom-row" style="display:none;padding:0 2px">
+            <textarea id="set-custom-prompt" class="custom-prompt" rows="3" placeholder="Your refine instruction, e.g. 'Summarize as 5 bullet points.'"></textarea>
+            <div class="hint-line" style="text-align:left;margin:6px 0 0">The raw transcript stays the source of truth; the lossless check still flags dropped facts.</div>
+          </div>
           <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5z"/></svg></div><div class="txt"><div class="t">Default source</div><div class="s">What a new recording captures</div></div>
             <div class="seg" id="set-source-seg"><span data-src="mic">Mic</span><span data-src="system">System</span><span data-src="both">Both</span></div></div>
         </div>
