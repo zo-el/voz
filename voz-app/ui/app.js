@@ -95,6 +95,14 @@ function leaveRecording() {
   stopTimer();
   clearInterval(levelTimer);
   flatWave();
+  const pt = $('partial'); pt.style.display = 'none'; pt.textContent = '';
+}
+function showPartial(text) {
+  if (!recording || !text) return;
+  const pt = $('partial');
+  pt.textContent = text;
+  pt.style.display = 'block';
+  pt.scrollTop = pt.scrollHeight;
 }
 
 $('recbtn').onclick = async () => {
@@ -328,6 +336,7 @@ listen('voz://event', (e) => {
       else if (p.state === 'Idle') leaveRecording();
       else if (p.state === 'Paused') setPill('Paused');
       break;
+    case 'partial': showPartial(p.text); break;
     case 'jobState':
       if (p.state === 'Transcribing') { $('procbar').style.display = 'flex'; $('proctext').innerHTML = '<b>Transcribing</b>'; }
       else if (p.state === 'Refining') { $('procbar').style.display = 'flex'; $('proctext').innerHTML = '<b>Refining</b>'; }

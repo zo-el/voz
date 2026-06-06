@@ -9,21 +9,22 @@
 //! builds and tests without the (slow) whisper.cpp compile.
 
 use crate::audio::Level;
-use crate::capture::{write_wav_16k_mono, Capturer};
+use crate::capture::{write_wav_16k_mono, CaptureTaps, Capturer};
 use crate::config::{RefineCfg, Settings};
 use crate::event::{Event, TrayState};
 use crate::history::History;
 use crate::jobs::{JobId, JobQueue, JobState};
-use crate::model::{NoteMeta, RefineStyle, Source};
+use crate::model::{NoteMeta, RefineStyle, Source, Speaker};
 use crate::pipeline::{transcribe_and_attribute, CapturedAudio};
 use crate::refine::lossless_check;
 use crate::refine_backends::{backend_available, build_refiner};
 use crate::store::{audio_path, note_basename, raw_basename, raw_note, refined_note, save_notes};
 use crate::transcribe::Transcriber;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// RFC3339 (UTC) timestamp for `created`.
 #[must_use]
@@ -157,6 +158,51 @@ fn recover_spool() -> Vec<(String, Source, u64, CapturedAudio)> {
 
 fn emit(events: &Sender<Event>, ev: Event) {
     let _ = events.send(ev);
+}
+
+/// Audio (16 kHz mono) accumulated before the live preview stops updating. Past
+/// this, re-transcribing the whole buffer each tick gets expensive, so the live
+/// text freezes (the authoritative transcript is still produced on stop).
+const PARTIAL_CAP_SAMPLES: usize = 16_000 * 150; // ~2.5 minutes
+
+/// Background worker: every few seconds, transcribe the audio captured so far and
+/// emit a non-final [`Event::Partial`]. Single-flight by construction (the loop is
+/// sequential), so on a slow CPU it simply updates less often instead of piling up.
+fn spawn_partials(
+    taps: CaptureTaps,
+    transcriber: Arc<dyn Transcriber>,
+    events: Sender<Event>,
+    stop: Arc<AtomicBool>,
+) {
+    std::thread::spawn(move || {
+        let mut last_len = 0usize;
+        loop {
+            // ~3s between passes, but poll the stop flag often for snappy teardown.
+            for _ in 0..12 {
+                if stop.load(Ordering::Relaxed) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(250));
+            }
+            let audio = taps.snapshot_mixed();
+            if audio.len() > PARTIAL_CAP_SAMPLES {
+                continue; // preview frozen on long takes; final transcript is full
+            }
+            if audio.len().saturating_sub(last_len) < 16_000 {
+                continue; // less than ~1s of new audio — not worth a pass
+            }
+            last_len = audio.len();
+            if let Ok(t) = transcriber.transcribe(&audio, Speaker::Me) {
+                if stop.load(Ordering::Relaxed) {
+                    return; // recording ended mid-pass; drop this stale preview
+                }
+                let text = t.plain_text();
+                if !text.trim().is_empty() {
+                    emit(&events, Event::Partial { text });
+                }
+            }
+        }
+    });
 }
 
 fn tray(events: &Sender<Event>, queue: &Arc<Mutex<JobQueue>>, rec: crate::recorder::RecState) {
@@ -364,6 +410,8 @@ pub struct Engine {
     recorder: crate::recorder::Recorder,
     queue: Arc<Mutex<JobQueue>>,
     capturer: Option<Capturer>,
+    /// Signal that stops the live-partials worker for the current recording.
+    partials_stop: Option<Arc<AtomicBool>>,
     started: Option<Instant>,
     started_source: Source,
     transcriber: Arc<dyn Transcriber>,
@@ -396,6 +444,7 @@ impl Engine {
             recorder: crate::recorder::Recorder::default(),
             queue: Arc::new(Mutex::new(JobQueue::new(concurrency))),
             capturer: None,
+            partials_stop: None,
             started: None,
             started_source: Source::Both,
             transcriber,
@@ -443,6 +492,17 @@ impl Engine {
             &self.settings.sources.mic_device,
             self.settings.sources.system_audio,
         )?;
+        // Live transcription preview: a worker taps the capture buffers and emits
+        // `Partial` events while recording. The buffers are shared (Arc), so this
+        // never blocks capture or needs the engine lock.
+        let stop = Arc::new(AtomicBool::new(false));
+        spawn_partials(
+            cap.taps(),
+            Arc::clone(&self.transcriber),
+            self.events.clone(),
+            Arc::clone(&stop),
+        );
+        self.partials_stop = Some(stop);
         self.capturer = Some(cap);
         self.started = Some(Instant::now());
         self.started_source = source;
@@ -473,6 +533,7 @@ impl Engine {
     /// Fails if not recording.
     pub fn cancel(&mut self) -> crate::Result<()> {
         self.recorder.cancel()?;
+        self.stop_partials();
         self.capturer.take(); // dropping stops the streams
         self.started = None;
         emit(&self.events, Event::RecState(self.recorder.state()));
@@ -488,6 +549,7 @@ impl Engine {
     /// Fails if not recording.
     pub fn stop(&mut self) -> crate::Result<()> {
         self.recorder.stop()?;
+        self.stop_partials();
         let duration = self.started.take().map_or(0, |t| t.elapsed().as_secs());
         let audio = self.capturer.take().map(Capturer::stop).unwrap_or_default();
         let source = self.started_source;
@@ -540,6 +602,13 @@ impl Engine {
         std::thread::spawn(move || {
             process_job(job, audio, duration, source, ctx, t, q, tx);
         });
+    }
+
+    /// Signal the live-partials worker (if any) to exit.
+    fn stop_partials(&mut self) {
+        if let Some(flag) = self.partials_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
     }
 
     /// Replace settings (e.g. after the user edits them).

@@ -366,6 +366,7 @@ fn event_json(ev: &Event) -> serde_json::Value {
     match ev {
         Event::RecState(s) => serde_json::json!({"type":"recState","state":format!("{s:?}")}),
         Event::Level(l) => serde_json::json!({"type":"level","mic":l.mic,"system":l.system}),
+        Event::Partial { text } => serde_json::json!({"type":"partial","text":text}),
         Event::JobState { job, state } => {
             serde_json::json!({"type":"jobState","job":job.0,"state":format!("{state:?}")})
         }

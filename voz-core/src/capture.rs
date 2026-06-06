@@ -107,6 +107,10 @@ impl StreamCapture {
         self.level.lock().map(|g| *g).unwrap_or(0.0)
     }
 
+    fn buf_handle(&self) -> Arc<Mutex<Vec<f32>>> {
+        Arc::clone(&self.buf)
+    }
+
     fn stop(mut self) -> Vec<f32> {
         let _ = self.child.kill();
         let _ = self.child.wait();
@@ -175,6 +179,17 @@ impl Capturer {
         }
     }
 
+    /// Live read-only taps into the capture buffers, for streaming partials. The
+    /// returned handles share the same buffers the reader threads append to, so a
+    /// worker can snapshot "audio so far" without stopping capture.
+    #[must_use]
+    pub fn taps(&self) -> CaptureTaps {
+        CaptureTaps {
+            mic: self.mic.as_ref().map(StreamCapture::buf_handle),
+            system: self.system.as_ref().map(StreamCapture::buf_handle),
+        }
+    }
+
     /// Stop all streams and collect the captured 16 kHz mono audio.
     #[must_use]
     pub fn stop(self) -> CapturedAudio {
@@ -182,6 +197,45 @@ impl Capturer {
             mic: self.mic.map(StreamCapture::stop),
             system: self.system.map(StreamCapture::stop),
         }
+    }
+}
+
+/// Read-only handles into the live capture buffers (see [`Capturer::taps`]).
+#[derive(Clone, Debug, Default)]
+pub struct CaptureTaps {
+    mic: Option<Arc<Mutex<Vec<f32>>>>,
+    system: Option<Arc<Mutex<Vec<f32>>>>,
+}
+
+impl CaptureTaps {
+    /// Snapshot the audio captured so far, mixing mic + system into one 16 kHz mono
+    /// stream (summed and clamped). Cheap clone under the lock; never blocks capture.
+    #[must_use]
+    pub fn snapshot_mixed(&self) -> Vec<f32> {
+        let mic = self
+            .mic
+            .as_ref()
+            .and_then(|b| b.lock().ok().map(|g| g.clone()))
+            .unwrap_or_default();
+        let sys = self
+            .system
+            .as_ref()
+            .and_then(|b| b.lock().ok().map(|g| g.clone()))
+            .unwrap_or_default();
+        if sys.is_empty() {
+            return mic;
+        }
+        if mic.is_empty() {
+            return sys;
+        }
+        let n = mic.len().max(sys.len());
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            let a = mic.get(i).copied().unwrap_or(0.0);
+            let b = sys.get(i).copied().unwrap_or(0.0);
+            out.push((a + b).clamp(-1.0, 1.0));
+        }
+        out
     }
 }
 

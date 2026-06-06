@@ -13,6 +13,11 @@
   .view.on { display: block; }
   .result { margin-top: 14px; }
   #search input::placeholder { color: var(--text-3); }
+  .partial { margin-top: 16px; max-height: 120px; overflow-y: auto; width: 100%;
+             font-size: 12px; line-height: 1.5; color: var(--text-2); text-align: left;
+             background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .partial::before { content: '◉ live'; display: block; font-size: 9px; letter-spacing: .08em;
+                     text-transform: uppercase; color: var(--accent-2); margin-bottom: 5px; }
   #onboard { display: none; position: absolute; inset: 0; z-index: 50; background: var(--panel); padding: 26px 18px; overflow-y: auto; }
   #onboard.on { display: block; }
   #onboard .seg span.on { background: var(--accent-soft); color: var(--accent-2); }
@@ -56,6 +61,7 @@
           <div class="sidebtn" id="btn-cancel" title="Cancel" style="visibility:hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
         </div>
         <div class="hint-line" id="hint">Click the mic, or the tray icon, to record</div>
+        <div class="partial" id="partial" style="display:none"></div>
       </div>
 
       <div class="procbar" id="procbar" style="display:none">

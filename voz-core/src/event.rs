@@ -48,6 +48,11 @@ pub enum Event {
     // recorder
     RecState(RecState),
     Level(Level),
+    /// Live (non-final) transcript of the audio captured so far, while recording.
+    /// The authoritative transcript is still produced by the job on stop.
+    Partial {
+        text: String,
+    },
     // per-job lifecycle
     JobState {
         job: JobId,
