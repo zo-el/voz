@@ -88,7 +88,52 @@ impl History {
             CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created DESC);",
         )
         .map_err(|e| crate::Error::Storage(e.to_string()))?;
-        Ok(History { conn })
+        // Migration: a `body` column holds the transcript text for full-text search.
+        // Ignored if it already exists (SQLite errors on a duplicate column).
+        let _ = conn.execute(
+            "ALTER TABLE notes ADD COLUMN body TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+        let history = History { conn };
+        // One-time backfill of pre-migration rows (cheap no-op once populated).
+        let _ = history.backfill_bodies();
+        Ok(history)
+    }
+
+    /// Populate `body` for rows that predate the column by reading their raw notes.
+    /// Best-effort; returns how many rows were updated.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Storage`] on a query failure.
+    pub fn backfill_bodies(&self) -> crate::Result<usize> {
+        let pending: Vec<(i64, String)> = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id, raw_path FROM notes WHERE body = '' OR body IS NULL")
+                .map_err(|e| crate::Error::Storage(e.to_string()))?;
+            let rows = stmt
+                .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))
+                .map_err(|e| crate::Error::Storage(e.to_string()))?;
+            rows.flatten().collect()
+        };
+        let mut n = 0;
+        for (id, raw_path) in pending {
+            if let Ok(md) = std::fs::read_to_string(&raw_path) {
+                let text = crate::store::parse_raw_note(&md).plain_text();
+                if !text.is_empty()
+                    && self
+                        .conn
+                        .execute(
+                            "UPDATE notes SET body = ?1 WHERE id = ?2",
+                            rusqlite::params![text, id],
+                        )
+                        .is_ok()
+                {
+                    n += 1;
+                }
+            }
+        }
+        Ok(n)
     }
 
     /// Insert (or replace) a note record. Returns the row id.
@@ -101,12 +146,13 @@ impl History {
         meta: &NoteMeta,
         refined_path: &str,
         raw_path: &str,
+        body: &str,
     ) -> crate::Result<i64> {
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO notes
-                 (created,title,source,voices,words,duration_secs,refine_backend,lossless_ok,refined_path,raw_path)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                 (created,title,source,voices,words,duration_secs,refine_backend,lossless_ok,refined_path,raw_path,body)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
                 rusqlite::params![
                     meta.created,
                     title,
@@ -118,6 +164,7 @@ impl History {
                     i64::from(meta.lossless_ok),
                     refined_path,
                     raw_path,
+                    body,
                 ],
             )
             .map_err(|e| crate::Error::Storage(e.to_string()))?;
@@ -136,7 +183,8 @@ impl History {
         )
     }
 
-    /// Full-text-ish search over title (case-insensitive substring), newest first.
+    /// Full-text-ish search over the title **and transcript body** (case-insensitive
+    /// substring), newest first.
     ///
     /// # Errors
     /// Returns [`crate::Error::Storage`] on failure.
@@ -144,7 +192,8 @@ impl History {
         let like = format!("%{term}%");
         self.query(
             "SELECT id,created,title,source,voices,words,duration_secs,refine_backend,lossless_ok,refined_path,raw_path
-             FROM notes WHERE title LIKE ?1 COLLATE NOCASE ORDER BY created DESC LIMIT ?2",
+             FROM notes WHERE (title LIKE ?1 OR body LIKE ?1) COLLATE NOCASE
+             ORDER BY created DESC LIMIT ?2",
             rusqlite::params![like, limit],
         )
     }
@@ -232,6 +281,7 @@ mod tests {
             &meta("2026-06-05T14:07:00", 64),
             "/n/a.md",
             "/n/raw/a.md",
+            "we agreed Priya ships the parser by Friday",
         )
         .unwrap();
         h.insert(
@@ -239,6 +289,7 @@ mod tests {
             &meta("2026-06-05T09:15:00", 120),
             "/n/b.md",
             "/n/raw/b.md",
+            "blocked on the staging database",
         )
         .unwrap();
 
@@ -248,9 +299,16 @@ mod tests {
         assert_eq!(recent[0].voices, "Me, Them");
         assert!(recent[0].lossless_ok);
 
-        let found = h.search("standup", 10).unwrap();
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].words, 120);
+        // search matches the title...
+        let by_title = h.search("standup", 10).unwrap();
+        assert_eq!(by_title.len(), 1);
+        assert_eq!(by_title[0].words, 120);
+
+        // ...and the transcript body (full-text content search)
+        let by_body = h.search("priya", 10).unwrap();
+        assert_eq!(by_body.len(), 1);
+        assert_eq!(by_body[0].title, "Planning sync");
+        assert_eq!(h.search("staging database", 10).unwrap().len(), 1);
 
         assert_eq!(h.search("nothing", 10).unwrap().len(), 0);
     }
@@ -263,6 +321,7 @@ mod tests {
             &meta("2026-06-05T14:00:00", 10),
             "/same.md",
             "/raw.md",
+            "first body",
         )
         .unwrap();
         h.insert(
@@ -270,6 +329,7 @@ mod tests {
             &meta("2026-06-05T14:00:00", 20),
             "/same.md",
             "/raw.md",
+            "second body",
         )
         .unwrap();
         let recent = h.recent(10).unwrap();

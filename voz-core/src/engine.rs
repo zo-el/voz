@@ -355,13 +355,14 @@ fn process_job(
         }
     };
 
-    // index in history (best-effort)
+    // index in history (best-effort); store the raw transcript for content search
     if let Ok(h) = History::open(&ctx.history_path) {
         let _ = h.insert(
             &title,
             &meta,
             saved.refined.to_str().unwrap_or_default(),
             saved.raw.to_str().unwrap_or_default(),
+            &transcript.plain_text(),
         );
     }
     let _ = refined_path;

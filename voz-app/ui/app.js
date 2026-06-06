@@ -158,12 +158,16 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---- history ----
-async function loadHistory() {
+async function loadHistory(query) {
   const list = $('histlist');
   list.textContent = '';
   let rows = [];
-  try { rows = await invoke('get_history'); } catch (e) {}
-  if (!rows.length) { const d = document.createElement('div'); d.className = 'hint-line'; d.textContent = 'No recordings yet.'; list.appendChild(d); return; }
+  try { rows = await invoke('get_history', { query: query || null }); } catch (e) {}
+  if (!rows.length) {
+    const d = document.createElement('div'); d.className = 'hint-line';
+    d.textContent = (query && query.trim()) ? `No matches for “${query.trim()}”.` : 'No recordings yet.';
+    list.appendChild(d); return;
+  }
   for (const r of rows) {
     const item = document.createElement('div'); item.className = 'hitem';
     item.title = 'Open note';
@@ -178,6 +182,12 @@ async function loadHistory() {
     m.append(b1, b2, b3); body.append(t, m); item.append(when, body); list.appendChild(item);
   }
 }
+// search box → full-text search over titles + transcript bodies (debounced)
+let searchTimer = null;
+$('searchbox').oninput = () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => loadHistory($('searchbox').value), 180);
+};
 
 // ---- settings ----
 let currentSettings = null;
@@ -337,6 +347,16 @@ $('note-copy').onclick = () => {
   if (body) navigator.clipboard.writeText(body).catch(() => {});
 };
 $('note-open').onclick = () => { if (currentNote?.refined_path) invoke('open_path', { path: currentNote.refined_path }).catch(() => {}); };
+$('note-export').onclick = async () => {
+  if (!currentNote) return;
+  const body = noteTab === 'refined' ? currentNote.refined : currentNote.raw;
+  const safe = (currentNote.title || 'transcript').replace(/[\\/:*?"<>|]/g, ' ').trim() || 'transcript';
+  const ext = noteTab === 'refined' ? 'md' : 'txt';
+  try {
+    const path = await window.__TAURI__.dialog.save({ defaultPath: `${safe}.${ext}`, filters: [{ name: 'Text', extensions: ['txt', 'md'] }] });
+    if (path) { await invoke('save_text_file', { path, content: body || '' }); toast('Exported'); }
+  } catch (e) { toast('Export failed'); }
+};
 $('note-delete').onclick = async () => {
   if (currentNote?.refined_path) { await invoke('delete_note', { refinedPath: currentNote.refined_path }).catch(() => {}); showView('history'); }
 };

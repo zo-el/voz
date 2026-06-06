@@ -108,6 +108,38 @@ pub fn raw_note(created_rfc3339: &str, transcript: &Transcript, refined_link_nam
     out
 }
 
+fn ms_to_srt_ts(ms: u64) -> String {
+    let (h, m, s, milli) = (
+        ms / 3_600_000,
+        (ms % 3_600_000) / 60_000,
+        (ms % 60_000) / 1000,
+        ms % 1000,
+    );
+    format!("{h:02}:{m:02}:{s:02},{milli:03}")
+}
+
+/// Render a [`Transcript`] as SubRip (`.srt`) subtitles using each turn's
+/// timestamps. Only meaningful when the turns carry real offsets (a freshly
+/// transcribed clip — saved notes don't persist per-turn timing).
+#[must_use]
+pub fn transcript_to_srt(t: &Transcript) -> String {
+    let mut out = String::new();
+    let mut idx = 0;
+    for turn in &t.turns {
+        let text = turn.text.trim();
+        if text.is_empty() {
+            continue;
+        }
+        idx += 1;
+        out.push_str(&format!(
+            "{idx}\n{} --> {}\n{text}\n\n",
+            ms_to_srt_ts(turn.start_ms),
+            ms_to_srt_ts(turn.end_ms),
+        ));
+    }
+    out
+}
+
 /// Strip a leading YAML front-matter block (`---` … `---`) and return the body.
 #[must_use]
 pub fn strip_frontmatter(md: &str) -> &str {
@@ -362,5 +394,29 @@ mod tests {
         assert_eq!(t.turns[0].text, "hello there");
         assert_eq!(t.turns[1].speaker, Speaker::Them);
         assert_eq!(t.voices(), vec!["Me", "Them"]);
+    }
+
+    #[test]
+    fn srt_formats_indexed_timestamped_cues() {
+        let tr = Transcript {
+            turns: vec![
+                Turn {
+                    speaker: Speaker::Me,
+                    text: "hello world".into(),
+                    start_ms: 0,
+                    end_ms: 2500,
+                },
+                Turn {
+                    speaker: Speaker::Them,
+                    text: " hi ".into(),
+                    start_ms: 63_000,
+                    end_ms: 64_010,
+                },
+            ],
+            language: None,
+        };
+        let srt = transcript_to_srt(&tr);
+        assert!(srt.contains("1\n00:00:00,000 --> 00:00:02,500\nhello world"));
+        assert!(srt.contains("2\n00:01:03,000 --> 00:01:04,010\nhi"));
     }
 }

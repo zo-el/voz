@@ -133,7 +133,7 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
     auto-activation by app}. The superwhisper/VoiceInk pattern.
 24. ⬜ **Watch-folder / file import / batch** (M) — drop audio/video files or watch a
     folder; transcribe meetings recorded elsewhere.
-25. ⬜ **Full-text search + history power tools** (S) — search all transcripts, filter
+25. ✅ **Full-text search + history power tools** (S) — search all transcripts, filter
     by source/speaker/date, bulk export (SRT/VTT/TXT/MD).
 26. ⬜ **Deeper Obsidian integration** (M) — templates, tags, daily-note appends,
     backlinks, an optional companion plugin.

@@ -127,9 +127,14 @@ fn open_path(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_history() -> Result<serde_json::Value, String> {
+fn get_history(query: Option<String>) -> Result<serde_json::Value, String> {
     let h = History::open(&History::default_path()).map_err(err)?;
-    let rows = h.recent(100).map_err(err)?;
+    // A non-empty query does full-text search over title + transcript body; else
+    // the most recent notes.
+    let rows = match query.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(term) => h.search(term, 100).map_err(err)?,
+        None => h.recent(100).map_err(err)?,
+    };
     let arr: Vec<serde_json::Value> = rows
         .iter()
         .map(|r| {
@@ -249,7 +254,13 @@ fn rerefine(
         let refined_md = voz_core::store::refined_note(&meta, &body, &raw_link);
         let _ = voz_core::store::write_atomic(std::path::Path::new(&refined_path), &refined_md);
         if let Ok(h) = History::open(&History::default_path()) {
-            let _ = h.insert(&rec.title, &meta, &refined_path, &rec.raw_path);
+            let _ = h.insert(
+                &rec.title,
+                &meta,
+                &refined_path,
+                &rec.raw_path,
+                &transcript.plain_text(),
+            );
         }
         let _ = app.emit(
             "voz://event",
@@ -349,6 +360,13 @@ fn check_update() -> Result<serde_json::Value, String> {
         "latest": latest,
         "url": html,
     }))
+}
+
+/// Write text to a user-chosen path (export). The path comes from the native save
+/// dialog; content is the note text we already hold. No shell, plain file write.
+#[tauri::command]
+fn save_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(err)
 }
 
 /// Open the local log file in the user's default app.
@@ -620,7 +638,8 @@ fn main() {
             download_model,
             get_diagnostics,
             open_log,
-            check_update
+            check_update,
+            save_text_file
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
