@@ -91,11 +91,21 @@ fn update_settings(
 ) -> Result<(), String> {
     let parsed: Settings = serde_json::from_value(settings).map_err(err)?;
     parsed.save().map_err(err)?; // persist to config.toml
-    let reload = {
+    let (reload, old_hotkey) = {
         let e = state.engine.lock().map_err(err)?;
-        e.settings().transcription.model != parsed.transcription.model
-            || e.settings().transcription.accel != parsed.transcription.accel
+        let reload = e.settings().transcription.model != parsed.transcription.model
+            || e.settings().transcription.accel != parsed.transcription.accel;
+        (reload, e.settings().general.hotkey.clone())
     };
+    // Re-register the global hotkey if it changed.
+    if old_hotkey != parsed.general.hotkey {
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+        let gs = app.global_shortcut();
+        let _ = gs.unregister(old_hotkey.as_str());
+        if let Err(e) = gs.register(parsed.general.hotkey.as_str()) {
+            log::warn!("new hotkey '{}' unavailable ({e})", parsed.general.hotkey);
+        }
+    }
     state
         .engine
         .lock()
@@ -752,10 +762,15 @@ fn main() {
                 }
             }
 
-            // register the global record hotkey (best-effort; logs on Wayland).
-            if let Err(e) = app.global_shortcut().register("Ctrl+Super+Space") {
+            // register the configured global record hotkey (best-effort; logs on
+            // Wayland where the compositor must grant it).
+            let hotkey = app
+                .try_state::<AppState>()
+                .and_then(|st| st.engine.lock().ok().map(|e| e.settings().general.hotkey.clone()))
+                .unwrap_or_else(|| "Ctrl+Super+Space".to_string());
+            if let Err(e) = app.global_shortcut().register(hotkey.as_str()) {
                 log::warn!(
-                    "global hotkey unavailable ({e}); use the tray icon or a compositor shortcut"
+                    "global hotkey '{hotkey}' unavailable ({e}); use the tray icon or a compositor shortcut"
                 );
             }
 

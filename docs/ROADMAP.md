@@ -80,7 +80,7 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 13. ✅ **True tray-anchored dropdown** (L) — X11: position the frameless panel under
     the tray icon; Wayland/COSMIC: a native applet (see Phase 4). *Why:* the original
     "the tray icon *is* the app" vision. *Dep:* per-desktop positioning.
-14. ⬜ **Global hotkey everywhere** (M) — GNOME 48 GlobalShortcuts portal; COSMIC
+14. 🚧 **Global hotkey everywhere** (M) — GNOME 48 GlobalShortcuts portal; COSMIC
     custom-shortcut fallback; push-to-talk *and* toggle. (Today: X11 only.)
 15. ✅ **Live streaming partials** (L) — text appears in a "◉ LIVE" box while you
     record; the authoritative transcript is produced on stop. **Better path taken:** a

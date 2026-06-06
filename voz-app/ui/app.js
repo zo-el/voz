@@ -226,6 +226,7 @@ async function loadSettings() {
   invoke('get_acceleration').then(d => { if (d) $('set-accel-now').textContent = 'Now: ' + d; }).catch(() => {});
   reflectStyle(s.refine?.style);
   $('set-keepaudio').classList.toggle('on', !!s.general?.keep_audio);
+  $('set-hotkey-keys').textContent = s.general?.hotkey || 'Ctrl+Super+Space';
   // reflect the default source on the Record screen too (while idle)
   if (!recording && s.sources?.default_source) {
     source = s.sources.default_source;
@@ -279,6 +280,32 @@ $('set-custom-prompt').onchange = async () => {
 };
 $('set-keepaudio').onclick = async () => {
   if (!currentSettings) return; currentSettings.general.keep_audio = !currentSettings.general.keep_audio; await persistSettings();
+};
+// --- record hotkey rebind ---
+function accelFromEvent(e) {
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return null; // wait for the main key
+  const mods = [];
+  if (e.ctrlKey) mods.push('Ctrl');
+  if (e.altKey) mods.push('Alt');
+  if (e.shiftKey) mods.push('Shift');
+  if (e.metaKey) mods.push('Super');
+  if (!mods.length) return null; // require at least one modifier
+  let key = e.key === ' ' ? 'Space' : (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  return mods.concat(key).join('+');
+}
+$('set-hotkey-btn').onclick = () => {
+  const el = $('set-hotkey-keys'); const orig = el.textContent;
+  el.textContent = 'Press keys…';
+  const onKey = async (e) => {
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // modifier alone — keep waiting
+    e.preventDefault();
+    document.removeEventListener('keydown', onKey, true);
+    const accel = accelFromEvent(e);
+    if (accel && currentSettings) {
+      currentSettings.general.hotkey = accel; el.textContent = accel; await persistSettings();
+    } else { el.textContent = orig; toast('Use a modifier + key, e.g. Ctrl+Super+Space'); }
+  };
+  document.addEventListener('keydown', onKey, true);
 };
 $('set-model-btn').onclick = () => showView('models');
 $('set-diag-btn').onclick = async () => {

@@ -43,6 +43,14 @@ pub struct GeneralCfg {
     /// configs written before this field load cleanly (treated as not onboarded).
     #[serde(default)]
     pub onboarded: bool,
+    /// Global record hotkey, in tauri-global-shortcut accelerator form
+    /// (e.g. `Ctrl+Super+Space`). `#[serde(default)]` for older configs.
+    #[serde(default = "default_hotkey")]
+    pub hotkey: String,
+}
+
+fn default_hotkey() -> String {
+    "Ctrl+Super+Space".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -95,6 +103,7 @@ impl Default for Settings {
                 theme: "dark".into(),
                 launch_on_login: true,
                 onboarded: false,
+                hotkey: default_hotkey(),
             },
             sources: SourcesCfg {
                 mic_device: "default".into(),
@@ -243,6 +252,9 @@ mod tests {
         let cfg = Settings::from_toml(toml).unwrap();
         assert_eq!(cfg.schema_version, SCHEMA_VERSION);
         assert_eq!(cfg.general.save_dir, "~/vault");
+        // Fields added after this config was written get their serde defaults.
+        assert_eq!(cfg.general.hotkey, "Ctrl+Super+Space");
+        assert!(!cfg.general.onboarded);
     }
 
     #[test]
