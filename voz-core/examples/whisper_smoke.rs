@@ -25,7 +25,7 @@ fn main() {
         samples.len() as f32 / 16000.0
     );
 
-    let t = WhisperTranscriber::load(&model_path, Some("en".into())).expect("load model");
+    let t = WhisperTranscriber::load(&model_path, Some("en".into()), true).expect("load model");
     let transcript = t.transcribe(&samples, Speaker::Me).expect("transcribe");
     for turn in &transcript.turns {
         println!(

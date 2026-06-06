@@ -149,6 +149,34 @@ impl History {
         )
     }
 
+    /// Look up a record by its refined-note path (the History tab's row key).
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Storage`] on failure.
+    pub fn get_by_refined(&self, refined_path: &str) -> crate::Result<Option<HistoryRecord>> {
+        let rows = self.query(
+            "SELECT id,created,title,source,voices,words,duration_secs,refine_backend,lossless_ok,refined_path,raw_path
+             FROM notes WHERE refined_path = ?1 LIMIT 1",
+            rusqlite::params![refined_path],
+        )?;
+        Ok(rows.into_iter().next())
+    }
+
+    /// Remove a record by refined-note path. Returns true if a row was deleted.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Storage`] on failure.
+    pub fn delete_by_refined(&self, refined_path: &str) -> crate::Result<bool> {
+        let n = self
+            .conn
+            .execute(
+                "DELETE FROM notes WHERE refined_path = ?1",
+                rusqlite::params![refined_path],
+            )
+            .map_err(|e| crate::Error::Storage(e.to_string()))?;
+        Ok(n > 0)
+    }
+
     fn query(&self, sql: &str, params: impl rusqlite::Params) -> crate::Result<Vec<HistoryRecord>> {
         let mut stmt = self
             .conn

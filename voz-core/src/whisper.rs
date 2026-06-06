@@ -24,18 +24,22 @@ impl std::fmt::Debug for WhisperTranscriber {
 
 impl WhisperTranscriber {
     /// Load a GGML model from disk. `language` of `None`/`"auto"` lets Whisper
-    /// detect; otherwise it's forced (e.g. `"en"`).
+    /// detect; otherwise it's forced (e.g. `"en"`). `use_gpu` enables the GPU
+    /// backend *if this binary was built with one* (Vulkan/CUDA), else it's a no-op
+    /// and runs on CPU.
     ///
     /// # Errors
     /// Returns [`crate::Error::Transcribe`] if the model can't be loaded.
-    pub fn load(model_path: &Path, language: Option<String>) -> crate::Result<Self> {
+    pub fn load(model_path: &Path, language: Option<String>, use_gpu: bool) -> crate::Result<Self> {
         // Route whisper.cpp/ggml's chatty logs into the `log` crate (dropped
         // unless the app installs a subscriber) instead of stderr.
         whisper_rs::install_logging_hooks();
         let path = model_path
             .to_str()
             .ok_or_else(|| crate::Error::Transcribe("non-utf8 model path".into()))?;
-        let ctx = WhisperContext::new_with_params(path, WhisperContextParameters::default())
+        let mut cparams = WhisperContextParameters::default();
+        cparams.use_gpu(use_gpu);
+        let ctx = WhisperContext::new_with_params(path, cparams)
             .map_err(|e| crate::Error::Transcribe(format!("load model: {e}")))?;
         Ok(Self { ctx, language })
     }

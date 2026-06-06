@@ -22,7 +22,7 @@ fn transcribes_known_speech() {
         return;
     }
     let audio = read_wav_16k_mono(sample).expect("read sample");
-    let t = WhisperTranscriber::load(&model, Some("en".into())).expect("load model");
+    let t = WhisperTranscriber::load(&model, Some("en".into()), true).expect("load model");
     let transcript = t.transcribe(&audio, Speaker::Me).expect("transcribe");
     let text = transcript.plain_text().to_lowercase();
     assert!(text.contains("country"), "unexpected transcript: {text}");

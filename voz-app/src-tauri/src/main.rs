@@ -82,10 +82,34 @@ fn get_settings(state: State<AppState>) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn update_settings(settings: serde_json::Value, state: State<AppState>) -> Result<(), String> {
+fn update_settings(
+    settings: serde_json::Value,
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<(), String> {
     let parsed: Settings = serde_json::from_value(settings).map_err(err)?;
     parsed.save().map_err(err)?; // persist to config.toml
-    state.engine.lock().map_err(err)?.update_settings(parsed);
+    let reload = {
+        let e = state.engine.lock().map_err(err)?;
+        e.settings().transcription.model != parsed.transcription.model
+            || e.settings().transcription.accel != parsed.transcription.accel
+    };
+    state
+        .engine
+        .lock()
+        .map_err(err)?
+        .update_settings(parsed.clone());
+    if reload {
+        // model or acceleration changed -> reload the transcriber off-thread
+        std::thread::spawn(move || {
+            let t = load_transcriber(&parsed);
+            if let Some(st) = app.try_state::<AppState>() {
+                if let Ok(mut e) = st.engine.lock() {
+                    e.set_transcriber(t);
+                }
+            }
+        });
+    }
     Ok(())
 }
 
@@ -116,6 +140,172 @@ fn get_history() -> Result<serde_json::Value, String> {
         })
         .collect();
     Ok(serde_json::Value::Array(arr))
+}
+
+fn source_from_str(s: &str) -> Source {
+    match s {
+        "Mic" => Source::Mic,
+        "System" => Source::System,
+        _ => Source::Both,
+    }
+}
+
+fn parse_style(s: &str) -> voz_core::model::RefineStyle {
+    use voz_core::model::RefineStyle as RS;
+    match s {
+        "adaptive" => RS::Adaptive,
+        "meeting" => RS::Meeting,
+        "memo" => RS::Memo,
+        other => RS::Custom(other.to_string()),
+    }
+}
+
+/// Read a note (raw + refined bodies) for the in-app detail view.
+#[tauri::command]
+fn read_note(refined_path: String) -> Result<serde_json::Value, String> {
+    let h = History::open(&History::default_path()).map_err(err)?;
+    let rec = h.get_by_refined(&refined_path).map_err(err)?;
+    let refined_md = std::fs::read_to_string(&refined_path).unwrap_or_default();
+    let raw_path = rec.as_ref().map(|r| r.raw_path.clone()).unwrap_or_default();
+    let raw_md = std::fs::read_to_string(&raw_path).unwrap_or_default();
+    Ok(serde_json::json!({
+        "title": rec.as_ref().map(|r| r.title.clone()).unwrap_or_default(),
+        "backend": rec.as_ref().map(|r| r.refine_backend.clone()).unwrap_or_default(),
+        "voices": rec.as_ref().map(|r| r.voices.clone()).unwrap_or_default(),
+        "lossless_ok": rec.as_ref().is_none_or(|r| r.lossless_ok),
+        "refined": voz_core::store::strip_frontmatter(&refined_md),
+        "raw": voz_core::store::strip_frontmatter(&raw_md),
+        "raw_path": raw_path,
+    }))
+}
+
+/// Delete a note (refined + raw files + the history row).
+#[tauri::command]
+fn delete_note(refined_path: String) -> Result<(), String> {
+    let h = History::open(&History::default_path()).map_err(err)?;
+    if let Some(rec) = h.get_by_refined(&refined_path).map_err(err)? {
+        let _ = std::fs::remove_file(&rec.raw_path);
+    }
+    let _ = std::fs::remove_file(&refined_path);
+    h.delete_by_refined(&refined_path).map_err(err)?;
+    Ok(())
+}
+
+/// Re-run refine on an existing note with a (possibly different) style, in the
+/// background; emits `noteUpdated` when the refined note is rewritten.
+#[tauri::command]
+fn rerefine(
+    refined_path: String,
+    style: String,
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let (refine_cfg, model_label) = {
+        let e = state.engine.lock().map_err(err)?;
+        (
+            e.settings().refine.clone(),
+            format!("whisper {}", e.settings().transcription.model),
+        )
+    };
+    let h = History::open(&History::default_path()).map_err(err)?;
+    let rec = h
+        .get_by_refined(&refined_path)
+        .map_err(err)?
+        .ok_or("note not found")?;
+    let raw_md = std::fs::read_to_string(&rec.raw_path).map_err(err)?;
+    let transcript = voz_core::store::parse_raw_note(&raw_md);
+    let rstyle = parse_style(&style);
+    let raw_link = std::path::Path::new(&rec.raw_path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+
+    std::thread::spawn(move || {
+        let refiner = voz_core::refine_backends::build_refiner(&refine_cfg, None);
+        let (body, backend, lossless) = match refiner.and_then(|r| {
+            r.refine(&transcript, &rstyle)
+                .ok()
+                .map(|b| (b, r.name().to_string()))
+        }) {
+            Some((b, name)) => {
+                let ok = voz_core::refine::lossless_check(&transcript.plain_text(), &b).ok;
+                (b, name, ok)
+            }
+            None => (transcript.plain_text(), "None".to_string(), true),
+        };
+        let meta = voz_core::NoteMeta {
+            created: rec.created.clone(),
+            duration_secs: rec.duration_secs as u64,
+            source: source_from_str(&rec.source),
+            voices: rec.voices.split(", ").map(String::from).collect(),
+            model: model_label,
+            refine_backend: backend,
+            lossless_ok: lossless,
+            words: transcript.word_count(),
+        };
+        let refined_md = voz_core::store::refined_note(&meta, &body, &raw_link);
+        let _ = voz_core::store::write_atomic(std::path::Path::new(&refined_path), &refined_md);
+        if let Ok(h) = History::open(&History::default_path()) {
+            let _ = h.insert(&rec.title, &meta, &refined_path, &rec.raw_path);
+        }
+        let _ = app.emit(
+            "voz://event",
+            serde_json::json!({"type":"noteUpdated","refined_path":refined_path}),
+        );
+    });
+    Ok(())
+}
+
+/// List the model registry with installed/size info (for the model picker).
+#[tauri::command]
+fn list_models() -> serde_json::Value {
+    let arr: Vec<serde_json::Value> = voz_core::models::MODELS
+        .iter()
+        .map(|m| {
+            serde_json::json!({
+                "id": m.id, "display": m.display, "size_mb": m.size_mb,
+                "installed": voz_core::models::is_installed(m.id),
+                "pinned": !m.sha256.is_empty(),
+            })
+        })
+        .collect();
+    serde_json::Value::Array(arr)
+}
+
+/// Download a model in the background (progress via `modelProgress` events).
+#[tauri::command]
+fn download_model(id: String, app: tauri::AppHandle) -> Result<(), String> {
+    let (id_prog, id_done, id_err) = (id.clone(), id.clone(), id.clone());
+    let (app_prog, app_done) = (app.clone(), app.clone());
+    std::thread::spawn(move || {
+        let res = voz_core::models::download(&id, false, move |done, total| {
+            let pct = if total > 0 {
+                done as f32 / total as f32
+            } else {
+                0.0
+            };
+            let _ = app_prog.emit(
+                "voz://event",
+                serde_json::json!({"type":"modelProgress","id":id_prog,"pct":pct}),
+            );
+        });
+        match res {
+            Ok(_) => {
+                let _ = app_done.emit(
+                    "voz://event",
+                    serde_json::json!({"type":"modelProgress","id":id_done,"pct":1.0}),
+                );
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "voz://event",
+                    serde_json::json!({"type":"jobFailed","error":format!("download {id_err}: {e}")}),
+                );
+            }
+        }
+    });
+    Ok(())
 }
 
 /// Map an engine `Event` to a JSON payload for the webview.
@@ -194,6 +384,11 @@ fn first_run_defaults(mut settings: Settings) -> Settings {
     settings
 }
 
+/// GPU on unless the user forced CPU. (No-op on a CPU-only build.)
+fn use_gpu(settings: &Settings) -> bool {
+    !matches!(settings.transcription.accel, voz_core::config::Accel::Cpu)
+}
+
 /// Load the transcriber: the configured model if installed, else `base.en`.
 fn load_transcriber(settings: &Settings) -> Arc<dyn Transcriber> {
     let id = &settings.transcription.model;
@@ -207,7 +402,7 @@ fn load_transcriber(settings: &Settings) -> Arc<dyn Transcriber> {
     } else {
         Some(settings.transcription.language.clone())
     };
-    match WhisperTranscriber::load(&path, lang) {
+    match WhisperTranscriber::load(&path, lang, use_gpu(settings)) {
         Ok(t) => Arc::new(t),
         Err(e) => {
             eprintln!("warning: no whisper model loaded ({e}); transcription will error until a model is installed");
@@ -256,7 +451,7 @@ fn ensure_model(app: tauri::AppHandle) {
             serde_json::json!({"type":"modelProgress","id":"base.en","pct":pct}),
         );
     });
-    match res.and_then(|path| WhisperTranscriber::load(&path, Some("en".into()))) {
+    match res.and_then(|path| WhisperTranscriber::load(&path, Some("en".into()), true)) {
         Ok(t) => {
             if let Some(state) = app.try_state::<AppState>() {
                 if let Ok(mut e) = state.engine.lock() {
@@ -330,7 +525,12 @@ fn main() {
             get_settings,
             update_settings,
             get_history,
-            open_path
+            open_path,
+            read_note,
+            delete_note,
+            rerefine,
+            list_models,
+            download_model
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

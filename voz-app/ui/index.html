@@ -73,18 +73,52 @@
     <section class="view" id="view-settings">
       <div class="subhdr"><h3>Settings</h3></div>
       <div class="set-group"><h4>Files</h4>
-        <div class="row single"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
-          <div class="txt"><div class="t">Save location</div><div class="s mono" id="set-savedir">—</div></div>
-          <div class="ctrl-sm" id="set-savedir-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Change</div></div>
+        <div class="stack">
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+            <div class="txt"><div class="t">Save location</div><div class="s mono" id="set-savedir">—</div></div>
+            <div class="ctrl-sm" id="set-savedir-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Change</div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M5 12a7 7 0 0 1 14 0M5 12a7 7 0 0 0 14 0"/></svg></div>
+            <div class="txt"><div class="t">Keep audio file</div><div class="s">Store the .wav next to the notes</div></div>
+            <div class="toggle" id="set-keepaudio"></div></div>
+        </div>
       </div>
       <div class="set-group"><h4>Engine</h4>
         <div class="stack">
-          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg></div><div class="txt"><div class="t">Model</div><div class="s" id="set-model">—</div></div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg></div><div class="txt"><div class="t">Model</div><div class="s" id="set-model">—</div></div><div class="ctrl-sm" id="set-model-btn">Manage</div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg></div><div class="txt"><div class="t">Acceleration</div><div class="s">GPU when available</div></div>
+            <div class="seg" id="set-accel-seg"><span data-a="auto">Auto</span><span data-a="cpu">CPU</span><span data-a="vulkan">Vulkan</span><span data-a="cuda">CUDA</span></div></div>
           <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div><div class="txt"><div class="t">Refine backend</div><div class="s" id="set-backend">—</div></div><div class="ctrl-sm" id="set-backend-btn">Change</div></div>
+          <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg></div><div class="txt"><div class="t">Refinement style</div><div class="s">Note shape</div></div>
+            <div class="seg" id="set-style-seg"><span data-st="adaptive">Adaptive</span><span data-st="meeting">Meeting</span><span data-st="memo">Memo</span></div></div>
           <div class="row" style="border-radius:var(--radius-sm)"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5z"/></svg></div><div class="txt"><div class="t">Default source</div><div class="s">What a new recording captures</div></div>
             <div class="seg" id="set-source-seg"><span data-src="mic">Mic</span><span data-src="system">System</span><span data-src="both">Both</span></div></div>
         </div>
       </div>
+      <div class="hint-line" id="set-hotkey">Record hotkey: <span class="kbdtag">Ctrl</span> <span class="kbdtag">Super</span> <span class="kbdtag">Space</span></div>
+    </section>
+
+    <!-- NOTE DETAIL -->
+    <section class="view" id="view-note">
+      <div class="subhdr"><div class="back" id="note-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>
+        <div><h3 id="note-title" style="font-size:13px">Note</h3><div class="sub" id="note-sub"></div></div></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <div class="seg" id="note-toggle"><span class="on" data-tab="refined">Refined</span><span data-tab="raw">Raw</span></div>
+        <div class="spacer" style="flex:1"></div>
+        <div class="ctrl-sm" id="note-restyle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6M21 12A9 9 0 0 0 6 5.3L3 8"/><path d="M21 22v-6h-6M3 12a9 9 0 0 0 15 6.7l3-2.7"/></svg>Re-refine</div>
+      </div>
+      <div class="card" style="min-height:160px;max-height:330px;overflow:auto"><div class="transcript" id="note-body"></div></div>
+      <div class="actions">
+        <button class="btn primary" id="note-copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+        <button class="btn" id="note-open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>Open in Obsidian</button>
+        <button class="btn ghost" id="note-delete" title="Delete note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      </div>
+    </section>
+
+    <!-- MODELS -->
+    <section class="view" id="view-models">
+      <div class="subhdr"><div class="back" id="models-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div><h3 style="font-size:13px">Transcription models</h3></div>
+      <div class="hint-line" style="margin-bottom:12px">Bigger = more accurate &amp; slower. The default is auto-installed.</div>
+      <div class="stack" id="models-list"></div>
     </section>
   </div>
 

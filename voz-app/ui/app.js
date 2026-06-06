@@ -103,9 +103,12 @@ $('srcpill').querySelectorAll('button').forEach(btn => {
 // ---- nav ----
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + name));
-  document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === name));
+  // note/models are sub-views; keep their parent tab highlighted
+  const tab = name === 'note' ? 'history' : name === 'models' ? 'settings' : name;
+  document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === tab));
   if (name === 'history') loadHistory();
   if (name === 'settings') loadSettings();
+  if (name === 'models') loadModels();
 }
 document.querySelectorAll('.nav a').forEach(a => a.onclick = () => showView(a.dataset.view));
 $('procbar').onclick = () => showView('history');
@@ -124,8 +127,8 @@ async function loadHistory() {
   if (!rows.length) { const d = document.createElement('div'); d.className = 'hint-line'; d.textContent = 'No recordings yet.'; list.appendChild(d); return; }
   for (const r of rows) {
     const item = document.createElement('div'); item.className = 'hitem';
-    item.title = 'Open in your editor / Obsidian';
-    item.onclick = () => { if (r.refined_path) invoke('open_path', { path: r.refined_path }).catch(() => {}); };
+    item.title = 'Open note';
+    item.onclick = () => { if (r.refined_path) openNote(r.refined_path); };
     const when = document.createElement('div'); when.className = 'when'; when.textContent = (r.created || '').slice(11, 16) || '—';
     const body = document.createElement('div'); body.className = 'h-body';
     const t = document.createElement('div'); t.className = 'h-t'; t.textContent = r.title || '(untitled)';
@@ -148,14 +151,21 @@ async function persistSettings() {
   loadSettings();
 }
 
+function segSet(id, value) {
+  document.querySelectorAll('#' + id + ' span').forEach(sp =>
+    sp.classList.toggle('on', Object.values(sp.dataset)[0] === value));
+}
+
 async function loadSettings() {
   try { currentSettings = await invoke('get_settings'); } catch (e) { return; }
   const s = currentSettings;
   $('set-savedir').textContent = s.general?.save_dir ?? '—';
   $('set-model').textContent = s.transcription?.model ?? '—';
   $('set-backend').textContent = BACKEND_LABEL[s.refine?.backend] ?? (s.refine?.backend ?? '—');
-  document.querySelectorAll('#set-source-seg span').forEach(sp =>
-    sp.classList.toggle('on', sp.dataset.src === s.sources?.default_source));
+  segSet('set-source-seg', s.sources?.default_source);
+  segSet('set-accel-seg', s.transcription?.accel);
+  segSet('set-style-seg', typeof s.refine?.style === 'string' ? s.refine.style : 'adaptive');
+  $('set-keepaudio').classList.toggle('on', !!s.general?.keep_audio);
   // reflect the default source on the Record screen too (while idle)
   if (!recording && s.sources?.default_source) {
     source = s.sources.default_source;
@@ -170,19 +180,86 @@ $('set-savedir-btn').onclick = async () => {
     if (dir && currentSettings) { currentSettings.general.save_dir = dir; await persistSettings(); }
   } catch (e) { console.error(e); }
 };
-// cycle the refine backend
 $('set-backend-btn').onclick = async () => {
   if (!currentSettings) return;
   const i = BACKENDS.indexOf(currentSettings.refine.backend);
   currentSettings.refine.backend = BACKENDS[(i + 1) % BACKENDS.length];
   await persistSettings();
 };
-// pick the default source
 document.querySelectorAll('#set-source-seg span').forEach(sp => sp.onclick = async () => {
-  if (!currentSettings) return;
-  currentSettings.sources.default_source = sp.dataset.src;
-  await persistSettings();
+  if (!currentSettings) return; currentSettings.sources.default_source = sp.dataset.src; await persistSettings();
 });
+document.querySelectorAll('#set-accel-seg span').forEach(sp => sp.onclick = async () => {
+  if (!currentSettings) return; currentSettings.transcription.accel = sp.dataset.a; await persistSettings();
+});
+document.querySelectorAll('#set-style-seg span').forEach(sp => sp.onclick = async () => {
+  if (!currentSettings) return; currentSettings.refine.style = sp.dataset.st; await persistSettings();
+});
+$('set-keepaudio').onclick = async () => {
+  if (!currentSettings) return; currentSettings.general.keep_audio = !currentSettings.general.keep_audio; await persistSettings();
+};
+$('set-model-btn').onclick = () => showView('models');
+
+// ---- models manager ----
+async function loadModels() {
+  const list = $('models-list'); list.textContent = '';
+  let models = [];
+  try { models = await invoke('list_models'); } catch (e) {}
+  for (const m of models) {
+    const row = document.createElement('div'); row.className = 'row'; row.style.borderRadius = 'var(--radius-sm)';
+    const ico = document.createElement('div'); ico.className = 'ico'; ico.textContent = m.installed ? '✓' : '↓';
+    const txt = document.createElement('div'); txt.className = 'txt';
+    const t = document.createElement('div'); t.className = 't'; t.textContent = m.display;
+    const sub = document.createElement('div'); sub.className = 's'; sub.textContent = `${m.size_mb} MB${m.installed ? ' · installed' : (m.pinned ? '' : ' · unverified')}`;
+    txt.append(t, sub);
+    const btn = document.createElement('div'); btn.className = 'ctrl-sm';
+    const cur = currentSettings?.transcription?.model === m.id;
+    btn.textContent = m.installed ? (cur ? 'In use' : 'Use') : (m.pinned ? 'Download' : '—');
+    btn.onclick = async () => {
+      if (m.installed) {
+        if (!cur && currentSettings) { currentSettings.transcription.model = m.id; await persistSettings(); loadModels(); }
+      } else if (m.pinned) {
+        btn.textContent = '…'; invoke('download_model', { id: m.id }).catch(() => {});
+      }
+    };
+    row.append(ico, txt, btn); list.appendChild(row);
+  }
+}
+
+// ---- note detail ----
+let currentNote = null, noteTab = 'refined';
+async function openNote(refinedPath) {
+  try { currentNote = await invoke('read_note', { refinedPath }); currentNote.refined_path = refinedPath; }
+  catch (e) { return; }
+  $('note-title').textContent = currentNote.title || 'Note';
+  $('note-sub').textContent = `${currentNote.voices || ''}${currentNote.lossless_ok === false ? ' · review: detail may differ' : ''}`;
+  noteTab = 'refined'; renderNote();
+  showView('note');
+}
+function renderNote() {
+  if (!currentNote) return;
+  $('note-body').textContent = noteTab === 'refined' ? (currentNote.refined || '') : (currentNote.raw || '');
+  document.querySelectorAll('#note-toggle span').forEach(sp => sp.classList.toggle('on', sp.dataset.tab === noteTab));
+}
+document.querySelectorAll('#note-toggle span').forEach(sp => sp.onclick = () => { noteTab = sp.dataset.tab; renderNote(); });
+$('note-back').onclick = () => showView('history');
+$('models-back').onclick = () => showView('settings');
+$('note-copy').onclick = () => {
+  const body = noteTab === 'refined' ? currentNote?.refined : currentNote?.raw;
+  if (body) navigator.clipboard.writeText(body).catch(() => {});
+};
+$('note-open').onclick = () => { if (currentNote?.refined_path) invoke('open_path', { path: currentNote.refined_path }).catch(() => {}); };
+$('note-delete').onclick = async () => {
+  if (currentNote?.refined_path) { await invoke('delete_note', { refinedPath: currentNote.refined_path }).catch(() => {}); showView('history'); }
+};
+const STYLES = ['adaptive', 'meeting', 'memo'];
+$('note-restyle').onclick = async () => {
+  if (!currentNote?.refined_path) return;
+  const cur = typeof currentSettings?.refine?.style === 'string' ? currentSettings.refine.style : 'adaptive';
+  const next = STYLES[(STYLES.indexOf(cur) + 1) % STYLES.length];
+  $('note-body').textContent = 'Re-refining (' + next + ')…';
+  invoke('rerefine', { refinedPath: currentNote.refined_path, style: next }).catch(() => {});
+};
 
 // ---- engine events ----
 listen('voz://event', (e) => {
@@ -212,6 +289,10 @@ listen('voz://event', (e) => {
       break;
     }
     case 'jobFailed': setPill('Error'); break;
+    case 'noteUpdated':
+      if (currentNote && p.refined_path === currentNote.refined_path) openNote(p.refined_path);
+      if (document.getElementById('view-history').classList.contains('on')) loadHistory();
+      break;
     case 'notify': /* desktop notification handled natively later */ break;
   }
 });

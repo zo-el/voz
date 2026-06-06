@@ -6,7 +6,7 @@
 //! (speaker-attributed verbatim transcript, the source of truth). Writes are
 //! atomic (temp file + rename) so a crash can't corrupt a vault file.
 
-use crate::model::{NoteMeta, Source, Transcript};
+use crate::model::{NoteMeta, Source, Speaker, Transcript, Turn};
 use std::path::{Path, PathBuf};
 
 /// Strip characters that are illegal or awkward in file names (and path
@@ -106,6 +106,59 @@ pub fn raw_note(created_rfc3339: &str, transcript: &Transcript, refined_link_nam
         ));
     }
     out
+}
+
+/// Strip a leading YAML front-matter block (`---` … `---`) and return the body.
+#[must_use]
+pub fn strip_frontmatter(md: &str) -> &str {
+    if let Some(rest) = md.strip_prefix("---\n") {
+        if let Some(end) = rest.find("\n---\n") {
+            return rest[end + 5..].trim_start_matches('\n');
+        }
+        if let Some(end) = rest.find("\n---") {
+            return rest[end + 4..].trim_start_matches('\n');
+        }
+    }
+    md
+}
+
+/// Parse a saved raw note back into a [`Transcript`] (for re-refine / display).
+/// Lines like `**Me:** text` become attributed turns; anything else is a turn with
+/// an unknown speaker.
+#[must_use]
+pub fn parse_raw_note(md: &str) -> Transcript {
+    let body = strip_frontmatter(md);
+    let mut turns = Vec::new();
+    for line in body.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("> ") {
+            continue;
+        }
+        if let Some((label, text)) = line.strip_prefix("**").and_then(|r| r.split_once(":**")) {
+            let speaker = match label {
+                "Me" => Speaker::Me,
+                "Them" => Speaker::Them,
+                _ => Speaker::Unknown,
+            };
+            turns.push(Turn {
+                speaker,
+                text: text.trim().to_string(),
+                start_ms: 0,
+                end_ms: 0,
+            });
+        } else {
+            turns.push(Turn {
+                speaker: Speaker::Unknown,
+                text: line.to_string(),
+                start_ms: 0,
+                end_ms: 0,
+            });
+        }
+    }
+    Transcript {
+        turns,
+        language: None,
+    }
 }
 
 /// Atomically write `contents` to `path` (temp file in the same directory, then
@@ -292,5 +345,22 @@ mod tests {
         write_atomic(&path, "hello").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn frontmatter_stripped_and_raw_note_parsed_back() {
+        assert_eq!(
+            strip_frontmatter("---\na: 1\n---\n\nbody here"),
+            "body here"
+        );
+        assert_eq!(strip_frontmatter("no frontmatter"), "no frontmatter");
+
+        let md = "---\ncreated: x\n---\n\n**Me:** hello there\n\n**Them:** hi back\n\n> link";
+        let t = parse_raw_note(md);
+        assert_eq!(t.turns.len(), 2);
+        assert_eq!(t.turns[0].speaker, Speaker::Me);
+        assert_eq!(t.turns[0].text, "hello there");
+        assert_eq!(t.turns[1].speaker, Speaker::Them);
+        assert_eq!(t.voices(), vec!["Me", "Them"]);
     }
 }

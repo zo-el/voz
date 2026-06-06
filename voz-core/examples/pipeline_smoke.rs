@@ -22,9 +22,12 @@ fn main() {
     use voz_core::whisper::WhisperTranscriber;
 
     let samples = read_wav_16k_mono(Path::new("/tmp/jfk.wav")).expect("read wav");
-    let transcriber =
-        WhisperTranscriber::load(&voz_core::models::model_path("base.en"), Some("en".into()))
-            .expect("load model");
+    let transcriber = WhisperTranscriber::load(
+        &voz_core::models::model_path("base.en"),
+        Some("en".into()),
+        true,
+    )
+    .expect("load model");
     let refiner = CliRefiner::claude_code();
 
     let req = ProcessRequest {
