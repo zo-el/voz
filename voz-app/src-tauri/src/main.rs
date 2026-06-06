@@ -400,11 +400,36 @@ fn event_json(ev: &Event) -> serde_json::Value {
     }
 }
 
+/// Anchor the panel near the tray: the top-right of the active monitor, where the
+/// tray lives on GNOME and most desktops. X11/StatusNotifier doesn't expose the
+/// tray icon's screen rect, so the corner is the pragmatic anchor — and the window
+/// stays freely movable afterward.
+fn anchor_panel(win: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = win.current_monitor() else {
+        return;
+    };
+    let (msize, mpos) = (monitor.size(), monitor.position());
+    let scale = monitor.scale_factor();
+    // outer_size() can report ~0 before the window is realized — fall back to the
+    // configured panel width (×scale) so we never push it off-screen.
+    let ww = win
+        .outer_size()
+        .ok()
+        .map(|s| s.width)
+        .filter(|&w| w > 100)
+        .unwrap_or((400.0 * scale).round() as u32) as i32;
+    let margin = (12.0 * scale).round() as i32;
+    let x = (mpos.x + msize.width as i32 - ww - margin).max(mpos.x);
+    let y = (mpos.y + margin).max(mpos.y);
+    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
 fn toggle_panel(app: &tauri::AppHandle) {
     if let Some(win) = app.get_webview_window("panel") {
         let _ = if win.is_visible().unwrap_or(false) {
             win.hide()
         } else {
+            anchor_panel(&win);
             win.show().and_then(|()| win.set_focus())
         };
     }
@@ -646,6 +671,7 @@ fn main() {
 
             if let Some(win) = app.get_webview_window("panel") {
                 let _ = win.show();
+                anchor_panel(&win); // now realized: anchor near the tray (top-right)
             }
             Ok(())
         })
