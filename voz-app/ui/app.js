@@ -223,6 +223,7 @@ async function loadSettings() {
   $('set-backend').textContent = BACKEND_LABEL[s.refine?.backend] ?? (s.refine?.backend ?? '—');
   segSet('set-source-seg', s.sources?.default_source);
   segSet('set-accel-seg', s.transcription?.accel);
+  invoke('get_acceleration').then(d => { if (d) $('set-accel-now').textContent = 'Now: ' + d; }).catch(() => {});
   reflectStyle(s.refine?.style);
   $('set-keepaudio').classList.toggle('on', !!s.general?.keep_audio);
   // reflect the default source on the Record screen too (while idle)

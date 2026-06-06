@@ -110,9 +110,10 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
       12.6, loads the model onto an NVIDIA RTX 3080 (held ~361 MiB VRAM) and
       transcribes correctly. Recipe (incl. the 11.5-vs-12.6 `libcudart` fix) in
       `BUILD.md`.
-    - ⬜ **Auto-detect at runtime:** "Auto" currently means use_gpu=true (ggml picks
-      a device, else CPU). Still to add: probe + *show the chosen backend* in
-      Settings, and a graceful "no GPU → CPU" notice.
+    - ✅ **Auto-detect + show the chosen backend:** `voz_core::gpu` probes the
+      compiled backend + present devices (`nvidia-smi`/`/dev/dri`) and Settings shows
+      "Now: CUDA — NVIDIA GPU" / "CPU — built for CUDA, but no NVIDIA GPU detected" /
+      "CPU". "Auto" = use_gpu on (ggml picks a device, else CPU). Pure mapping tested.
     - **Distribution strategy** (this is the real constraint — a binary can only use
       a backend that was *compiled in*, and a CUDA/Vulkan binary needs that runtime
       present to load):

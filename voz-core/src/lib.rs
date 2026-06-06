@@ -17,6 +17,7 @@ pub mod config;
 #[cfg(feature = "engine")]
 pub mod engine;
 pub mod event;
+pub mod gpu;
 #[cfg(feature = "history")]
 pub mod history;
 pub mod jobs;

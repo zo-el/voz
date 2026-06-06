@@ -149,6 +149,13 @@ fn get_history(query: Option<String>) -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Array(arr))
 }
 
+/// Human description of the acceleration backend the running binary will actually
+/// use (compiled backend + detected GPU). Shown under the Acceleration control.
+#[tauri::command]
+fn get_acceleration() -> String {
+    voz_core::gpu::effective_backend_desc()
+}
+
 /// Import an existing audio/video file and run it through the transcribe pipeline.
 /// Decoding (ffmpeg) runs on a background thread so it never holds the engine lock;
 /// the brief enqueue takes it. Progress shows via the normal job events.
@@ -665,7 +672,8 @@ fn main() {
             open_log,
             check_update,
             save_text_file,
-            import_audio
+            import_audio,
+            get_acceleration
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
