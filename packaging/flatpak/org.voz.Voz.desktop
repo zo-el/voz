@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Voz
+GenericName=Voice Recorder & Transcriber
+Comment=Record your mic and meetings, transcribed locally into Obsidian notes
+Exec=voz-app
+Icon=org.voz.Voz
+Terminal=false
+Categories=AudioVideo;Audio;
+Keywords=transcribe;record;voice;whisper;meeting;notes;dictation;
+StartupNotify=true

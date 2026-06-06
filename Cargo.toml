@@ -5,7 +5,7 @@
 [workspace]
 resolver = "2"
 members = ["voz-core"]
-exclude = ["voz-app"]
+exclude = ["voz-app", "cosmic-applet"]
 
 [workspace.package]
 version = "0.1.0"

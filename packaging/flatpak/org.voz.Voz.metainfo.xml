@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.voz.Voz</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Voz</name>
+  <summary>Record and transcribe your mic and meetings, locally</summary>
+
+  <description>
+    <p>
+      Voz is a local-first voice recorder and transcriber that lives in your system
+      tray. It captures your microphone and the meeting audio you hear at the same
+      time — without joining the meeting — and turns each recording into two linked
+      Obsidian-friendly notes: a verbatim transcript and a clean summary.
+    </p>
+    <p>
+      Transcription runs on your machine with whisper.cpp (CPU, or GPU via Vulkan or
+      CUDA). The only network use is an optional AI cleanup step you choose and can
+      turn off. Your audio and notes never leave your computer.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">org.voz.Voz.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>The Voz panel, recording with a live transcript preview</caption>
+      <image>https://raw.githubusercontent.com/zo-el/voz/main/docs/screenshots/record.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/zo-el/voz</url>
+  <url type="bugtracker">https://github.com/zo-el/voz/issues</url>
+
+  <developer_name>Joel Ulahanna</developer_name>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.1.0" date="2026-06-06">
+      <description>
+        <p>First release: local dual-source capture, whisper.cpp transcription,
+        Raw + Refined Obsidian notes, tray GUI, live transcript preview.</p>
+      </description>
+    </release>
+  </releases>
+</component>

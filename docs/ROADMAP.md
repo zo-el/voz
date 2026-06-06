@@ -43,10 +43,12 @@ recording + getting notes within a minute, with no terminal and no surprises.
    without a monitor), disk full / unwritable vault, backend down/timeout, model
    missing, no network. Each shows a clear message + the fix. *Why:* strangers hit
    edge cases; silence = "broken".
-5. ⬜ **Packaging** (L) — declare runtime deps in the `.deb` (PipeWire, `xdg-utils`);
-   ship **AppImage** (portable) and a **Flatpak** (Flathub-ready, sandboxed);
-   publish checksums and a signed **GitHub Release** via CI. *Why:* one trusted
-   install path per distro. *Dep:* CI release pipeline.
+5. 🚧 **Packaging** (L) — ✅ `.deb` (declares PipeWire/xdg-utils deps) + ✅ AppImage
+   + ✅ checksums via CI release. 🚧 **Flatpak**: manifest + AppStream metainfo +
+   desktop entry written and validated (`appstreamcli`/`desktop-file-validate`) in
+   `packaging/flatpak/`. ⬜ Remaining before it installs: bundle/replace `pw-record`
+   (not in the GNOME runtime — or move capture to libpipewire/portal) and generate
+   offline cargo sources for Flathub. *Dep:* CI release pipeline.
 6. 🚧 **CI release pipeline** (M) — ✅ `.github/workflows/release.yml`: a push to
    `main` with a bumped version auto-builds the `.deb` + AppImage, gates on the core
    tests, and publishes a `v<version>` GitHub Release with checksums. ⬜ Remaining:
@@ -135,8 +137,11 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 ---
 
 ## Phase 4 — Platform & ecosystem
-27. ⬜ **COSMIC native applet** (L) — the true Wayland tray-anchored dropdown using
-    libcosmic, reusing `voz-core`. *Why:* COSMIC is a primary target.
+27. 🚧 **COSMIC native applet** (L) — the true Wayland tray-anchored dropdown using
+    libcosmic, reusing `voz-core`. Scaffold + design in `cosmic-applet/` (engine
+    wiring written; the libcosmic `Application` impl is TODO). ⬜ Needs a COSMIC
+    environment + a pinned libcosmic to build/verify. *Why:* COSMIC is a primary
+    target.
 28. ⬜ **macOS / Windows** (L) — Tauri is cross-platform; the core is portable
     (whisper.cpp CoreML/Metal on macOS). Big market expansion.
 29. ⬜ **Flathub + distro packages** (M) — AUR, Fedora COPR, official Flathub listing.

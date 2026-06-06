@@ -1,0 +1,22 @@
+# Voz COSMIC panel applet — SCAFFOLD ONLY (not built/verified yet).
+#
+# The whole point of `voz-core` is that the engine is UI-agnostic: voz-app (Tauri)
+# and this COSMIC applet are just two front-ends over the same Engine. This crate is
+# excluded from the workspace and needs a COSMIC environment + a pinned libcosmic
+# revision to build. See README.md and docs/ROADMAP.md #27.
+[package]
+name = "voz-cosmic"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "COSMIC panel applet for Voz (scaffold; reuses voz-core)."
+publish = false
+
+[dependencies]
+voz-core = { path = "../voz-core", features = ["engine", "whisper"] }
+
+# Uncomment + pin to a known-good revision before building (libcosmic is a fast-
+# moving git dependency with no crates.io release):
+# libcosmic = { git = "https://github.com/pop-os/libcosmic", rev = "<pin-me>", \
+#   default-features = false, features = ["applet", "tokio", "wayland", "single-instance"] }
+# tokio = { version = "1", features = ["full"] }

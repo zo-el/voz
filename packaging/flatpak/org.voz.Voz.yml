@@ -1,0 +1,59 @@
+# Flatpak manifest for Voz. Build locally with:
+#   flatpak install -y flathub org.gnome.Platform//47 org.gnome.Sdk//47 \
+#       org.freedesktop.Sdk.Extension.rust-stable//24.08 \
+#       org.freedesktop.Sdk.Extension.llvm18//24.08
+#   flatpak-builder --user --install --force-clean build-dir \
+#       packaging/flatpak/org.voz.Voz.yml
+#
+# See packaging/flatpak/README.md for the Flathub (offline cargo sources) steps and
+# the known PipeWire caveat. NOTE: not yet built/validated end-to-end in CI — the
+# dev environment lacks flatpak-builder + the runtimes (tracked: ROADMAP #5/#29).
+id: org.voz.Voz
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+command: voz-app
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.llvm18
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Audio: PulseAudio socket (PipeWire exposes one); for native capture also expose
+  # the PipeWire socket. See README — `pw-record` itself must be available too.
+  - --socket=pulseaudio
+  - --filesystem=xdg-run/pipewire-0
+  # GPU acceleration (Vulkan).
+  - --device=dri
+  # System tray (StatusNotifier) + desktop notifications.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Notes are written to the user's vault. A portal (xdg-desktop-portal) would be
+  # tighter; --filesystem=home is the simple default for a personal build.
+  - --filesystem=home
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm18/bin
+  prepend-ld-library-path: /usr/lib/sdk/llvm18/lib
+  env:
+    CARGO_HOME: /run/build/voz/cargo
+
+modules:
+  - name: voz
+    buildsystem: simple
+    build-commands:
+      # Flathub builds are offline: vendor deps first (see README) and add
+      # `--offline` here. For a local build the default (networked) cargo works.
+      - cargo build --release --manifest-path voz-app/src-tauri/Cargo.toml
+      - install -Dm755 voz-app/src-tauri/target/release/voz-app /app/bin/voz-app
+      - install -Dm644 packaging/flatpak/org.voz.Voz.desktop
+        /app/share/applications/org.voz.Voz.desktop
+      - install -Dm644 packaging/flatpak/org.voz.Voz.metainfo.xml
+        /app/share/metainfo/org.voz.Voz.metainfo.xml
+      - install -Dm644 voz-app/src-tauri/icons/128x128.png
+        /app/share/icons/hicolor/128x128/apps/org.voz.Voz.png
+    sources:
+      - type: dir
+        path: ../..
