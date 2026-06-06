@@ -15,6 +15,10 @@ allow = [
     "Unlicense",
     "Zlib",
     "MPL-2.0",
+    # webpki-roots 1.0+ ships the Mozilla CA-certificate *data* under this license
+    # (the bundle we use for TLS to the refine backend / GitHub update check). It's a
+    # permissive, Apache-compatible data license — not viral, safe to redistribute.
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
 
