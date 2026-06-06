@@ -236,6 +236,28 @@ $('set-diag-btn').onclick = async () => {
 };
 $('set-log-btn').onclick = () => invoke('open_log').catch(() => {});
 
+// ---- update check ----
+let updateUrl = null;
+async function checkUpdate(announce) {
+  try {
+    const r = await invoke('check_update');
+    if (r.available) {
+      updateUrl = r.url;
+      $('set-update-s').textContent = `Update available: ${r.latest} — tap to view`;
+      $('set-update-btn').textContent = 'View';
+      toast(`Update available: ${r.latest}`);
+    } else if (announce) {
+      $('set-update-s').textContent = `Up to date (${r.current})`;
+      toast(`You're on the latest version (${r.current})`);
+    }
+  } catch (e) { if (announce) toast('Couldn’t check for updates (offline?)'); }
+}
+$('set-update-btn').onclick = () => {
+  if (updateUrl) invoke('open_path', { path: updateUrl }).catch(() => {});
+  else checkUpdate(true);
+};
+setTimeout(() => checkUpdate(false), 2500); // quiet check shortly after launch
+
 // ---- models manager ----
 async function loadModels() {
   const list = $('models-list'); list.textContent = '';

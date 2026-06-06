@@ -317,6 +317,40 @@ fn get_diagnostics(state: State<AppState>) -> Result<String, String> {
     Ok(logging::diagnostics(e.settings()))
 }
 
+/// Check the GitHub Releases feed for a newer version. Best-effort and read-only:
+/// it fetches release metadata (JSON) and compares the tag — it never downloads or
+/// executes anything. Returns `{available, current, latest, url}`.
+#[tauri::command]
+fn check_update() -> Result<serde_json::Value, String> {
+    const REPO: &str = "zo-el/voz";
+    let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
+    let resp = match ureq::get(&url)
+        .set("User-Agent", "voz-app")
+        .timeout(std::time::Duration::from_secs(6))
+        .call()
+    {
+        Ok(r) => r,
+        // 404 = no release published yet -> treat as "up to date", not an error.
+        Err(ureq::Error::Status(404, _)) => {
+            return Ok(serde_json::json!({
+                "available": false, "current": env!("CARGO_PKG_VERSION"),
+                "latest": "", "url": "",
+            }));
+        }
+        Err(e) => return Err(err(e)),
+    };
+    let json: serde_json::Value = resp.into_json().map_err(err)?;
+    let latest = json.get("tag_name").and_then(|v| v.as_str()).unwrap_or("");
+    let html = json.get("html_url").and_then(|v| v.as_str()).unwrap_or("");
+    let current = env!("CARGO_PKG_VERSION");
+    Ok(serde_json::json!({
+        "available": voz_core::update::is_newer(current, latest),
+        "current": current,
+        "latest": latest,
+        "url": html,
+    }))
+}
+
 /// Open the local log file in the user's default app.
 #[tauri::command]
 fn open_log() -> Result<(), String> {
@@ -559,7 +593,8 @@ fn main() {
             list_models,
             download_model,
             get_diagnostics,
-            open_log
+            open_log,
+            check_update
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

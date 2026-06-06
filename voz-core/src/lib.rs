@@ -30,6 +30,7 @@ pub mod refine;
 pub mod refine_backends;
 pub mod store;
 pub mod transcribe;
+pub mod update;
 #[cfg(feature = "whisper")]
 pub mod whisper;
 
