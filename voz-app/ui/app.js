@@ -230,6 +230,11 @@ $('set-keepaudio').onclick = async () => {
   if (!currentSettings) return; currentSettings.general.keep_audio = !currentSettings.general.keep_audio; await persistSettings();
 };
 $('set-model-btn').onclick = () => showView('models');
+$('set-diag-btn').onclick = async () => {
+  try { const d = await invoke('get_diagnostics'); await navigator.clipboard.writeText(d); toast('Diagnostics copied'); }
+  catch (e) { toast('Couldn’t copy diagnostics'); }
+};
+$('set-log-btn').onclick = () => invoke('open_log').catch(() => {});
 
 // ---- models manager ----
 async function loadModels() {

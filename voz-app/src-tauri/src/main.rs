@@ -19,6 +19,8 @@ use voz_core::transcribe::Transcriber;
 use voz_core::whisper::WhisperTranscriber;
 use voz_core::Settings;
 
+mod logging;
+
 struct AppState {
     engine: Mutex<Engine>,
 }
@@ -308,6 +310,23 @@ fn download_model(id: String, app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Redacted diagnostics text for the "Copy diagnostics" button.
+#[tauri::command]
+fn get_diagnostics(state: State<AppState>) -> Result<String, String> {
+    let e = state.engine.lock().map_err(err)?;
+    Ok(logging::diagnostics(e.settings()))
+}
+
+/// Open the local log file in the user's default app.
+#[tauri::command]
+fn open_log() -> Result<(), String> {
+    std::process::Command::new("xdg-open")
+        .arg(logging::log_path())
+        .spawn()
+        .map_err(err)?;
+    Ok(())
+}
+
 /// Map an engine `Event` to a JSON payload for the webview.
 fn event_json(ev: &Event) -> serde_json::Value {
     match ev {
@@ -412,7 +431,7 @@ fn load_transcriber(settings: &Settings) -> Arc<dyn Transcriber> {
     match WhisperTranscriber::load(&path, lang, use_gpu(settings)) {
         Ok(t) => Arc::new(t),
         Err(e) => {
-            eprintln!("warning: no whisper model loaded ({e}); transcription will error until a model is installed");
+            log::warn!("no whisper model loaded ({e}); transcription will error until a model is installed");
             Arc::new(NullTranscriber)
         }
     }
@@ -489,6 +508,7 @@ fn pump_events(app: tauri::AppHandle, rx: Receiver<Event>) {
 }
 
 fn main() {
+    logging::init();
     let settings = first_run_defaults(Settings::load());
     let transcriber = load_transcriber(&settings);
     let (tx, rx) = channel::<Event>();
@@ -537,7 +557,9 @@ fn main() {
             delete_note,
             rerefine,
             list_models,
-            download_model
+            download_model,
+            get_diagnostics,
+            open_log
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -569,14 +591,14 @@ fn main() {
                 if let Ok(mut e) = state.engine.lock() {
                     let n = e.recover();
                     if n > 0 {
-                        eprintln!("recovered {n} unfinished recording(s)");
+                        log::info!("recovered {n} unfinished recording(s)");
                     }
                 }
             }
 
             // register the global record hotkey (best-effort; logs on Wayland).
             if let Err(e) = app.global_shortcut().register("Ctrl+Super+Space") {
-                eprintln!(
+                log::warn!(
                     "global hotkey unavailable ({e}); use the tray icon or a compositor shortcut"
                 );
             }
