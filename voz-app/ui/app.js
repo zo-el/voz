@@ -135,6 +135,20 @@ function appWindow() { try { return window.__TAURI__.window.getCurrentWindow(); 
 $('btn-min').onclick = () => { const w = appWindow(); if (w) w.minimize(); };
 $('btn-hide').onclick = () => { const w = appWindow(); if (w) w.hide(); };
 
+// ---- keyboard shortcuts (accessibility) ----
+document.addEventListener('keydown', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if ($('onboard').classList.contains('on')) return;
+  const current = document.querySelector('.view.on')?.id;
+  if (e.key === 'Escape') {
+    if (current === 'view-note') showView('history');
+    else if (current === 'view-models') showView('settings');
+    else { const w = appWindow(); if (w) w.hide(); }
+  } else if (e.code === 'Space' && current === 'view-record') {
+    e.preventDefault(); $('recbtn').click();
+  }
+});
+
 // ---- history ----
 async function loadHistory() {
   const list = $('histlist');

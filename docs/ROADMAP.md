@@ -26,11 +26,11 @@ every error state handled, and the Wayland/COSMIC story. That's Phase 1.
 The bar: a person on stock Ubuntu/Pop/Fedora installs one package, launches, and is
 recording + getting notes within a minute, with no terminal and no surprises.
 
-1. ⬜ **First-run onboarding** (M) — a short guided flow on first launch: welcome →
+1. ✅ **First-run onboarding** (M) — a short guided flow on first launch: welcome →
    choose save folder (default: detect an Obsidian vault, else `~/Recordings/Voz`) →
    choose refine backend from *what's actually available* → mic check with a live
    level meter → done. *Why:* removes all guesswork. *Dep:* backend detection (#2).
-2. ⬜ **Backend auto-detection + graceful fallback** (S) 🚧 — detect `claude`,
+2. ✅ **Backend auto-detection + graceful fallback** (S) — detect `claude`,
    `codex`, `ollama` on PATH; if the configured backend is unavailable, fall back to
    raw-only and say so (never a silent failure or scary error). Default for a fresh
    user with none installed = **raw-only**, with a one-click "enable AI cleanup"
@@ -39,7 +39,7 @@ recording + getting notes within a minute, with no terminal and no surprises.
    model in the package *or* download on first run with a real progress bar, resume
    on failure, checksum, and a model picker (Fast/Balanced/Accurate with sizes).
    *Why:* transcription must work offline immediately, no manual `curl`.
-4. ⬜ **Every failure has a UI state** (M) — no mic, no monitor (Bluetooth/headset
+4. 🚧 **Every failure has a UI state** (M) — no mic, no monitor (Bluetooth/headset
    without a monitor), disk full / unwritable vault, backend down/timeout, model
    missing, no network. Each shows a clear message + the fix. *Why:* strangers hit
    edge cases; silence = "broken".
@@ -54,7 +54,7 @@ recording + getting notes within a minute, with no terminal and no surprises.
 7. ⬜ **GNOME tray reliability + docs** (S) — verify the AppIndicator path across
    GNOME versions; detect a missing/disabled extension and guide the user; keep the
    app fully usable via window + hotkey without the tray.
-8. ⬜ **Accessibility pass** (M) — full keyboard path, focus order, ARIA labels,
+8. 🚧 **Accessibility pass** (M) — full keyboard path, focus order, ARIA labels,
    screen-reader test, contrast/AA, reduced-motion (✅ already), large-text. *Why:*
    production apps are accessible.
 9. ⬜ **Logging, diagnostics, crash safety** (S) — local rotated logs (no telemetry),
@@ -72,7 +72,7 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 ---
 
 ## Phase 2 — Core UX polish
-12. ⬜ **In-app note detail view** (M) — open a History note inside the panel: Raw/
+12. ✅ **In-app note detail view** (M) — open a History note inside the panel: Raw/
     Refined toggle, Copy, Open in Obsidian, **Re-refine** with another style, delete.
     (Today: opens the file externally.)
 13. ⬜ **True tray-anchored dropdown** (L) — X11: position the frameless panel under
@@ -84,11 +84,11 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
     you speak, finalizing on silence. *Why:* feels instant. *Dep:* VAD integration.
 16. ⬜ **Real waveform + capture polish** (S) — drive the waveform from real per-source
     levels; smooth pause/resume; elapsed/words live.
-17. ⬜ **Editable refinement prompt + style presets UI** (S) — Adaptive/Meeting/Memo/
+17. 🚧 **Editable refinement prompt + style presets UI** (S) — Adaptive/Meeting/Memo/
     Custom, editable in Settings, with a live preview. *Dep:* none.
-18. ⬜ **Model management UI** (M) — list/download/switch/delete models with sizes and
+18. ✅ **Model management UI** (M) — list/download/switch/delete models with sizes and
     a CPU/Vulkan/CUDA backend selector; show disk usage. *Dep:* #3.
-19. ⬜ **Settings: full coverage** (M) — hotkey rebind, theme (incl. light), language,
+19. ✅ **Settings: full coverage** (M) — hotkey rebind, theme (incl. light), language,
     audio-device picker, keep-audio, output format (md/txt/srt), Obsidian options.
 
 ---
