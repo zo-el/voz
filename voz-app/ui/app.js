@@ -37,11 +37,24 @@ function animateWave(level) {
 }
 flatWave();
 
-// ---- state pill ----
+// ---- state pill + toast ----
 function setPill(text, cls) {
   const p = $('statepill');
   p.className = 'statepill' + (cls ? ' ' + cls : '');
   $('statetext').textContent = text;
+}
+function toast(msg) {
+  const t = $('toast'); if (!t) return;
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('on'), 4500);
+}
+function friendlyError(m) {
+  m = m || 'Something went wrong.';
+  if (/no model/i.test(m)) return 'No transcription model installed — open Settings ▸ Model.';
+  if (/pw-record|default sink|monitor|source|audio/i.test(m)) return 'Couldn’t access audio — check your microphone / output device.';
+  if (/refine|claude|codex|ollama/i.test(m)) return 'AI cleanup unavailable — saved the raw transcript.';
+  if (/storage|disk|write|permission|read-only/i.test(m)) return 'Couldn’t save — check the save folder is writable.';
+  return m;
 }
 
 // ---- timer ----
@@ -86,7 +99,11 @@ function leaveRecording() {
 
 $('recbtn').onclick = async () => {
   try { recording ? await invoke('stop') : await invoke('start', { source }); }
-  catch (e) { setPill('Error'); console.error(e); }
+  catch (e) {
+    setPill('Ready');
+    toast('Couldn’t start recording — check your audio device, or pick Mic in the source selector.');
+    console.error(e);
+  }
 };
 $('btn-cancel').onclick = () => invoke('cancel').catch(() => {});
 $('btn-pause').onclick = () => invoke('pause').catch(() => {});
@@ -288,12 +305,12 @@ listen('voz://event', (e) => {
       setPill(pct >= 100 ? 'Ready' : 'Model ' + pct + '%');
       break;
     }
-    case 'jobFailed': setPill('Error'); break;
+    case 'jobFailed': toast(friendlyError(p.error)); setPill('Ready'); break;
     case 'noteUpdated':
       if (currentNote && p.refined_path === currentNote.refined_path) openNote(p.refined_path);
       if (document.getElementById('view-history').classList.contains('on')) loadHistory();
       break;
-    case 'notify': /* desktop notification handled natively later */ break;
+    case 'notify': toast(p.title || 'Note ready'); break;
   }
 });
 
@@ -306,3 +323,31 @@ function resetIdleUI() {
 resetIdleUI();
 invoke('get_state').then(s => { if (String(s).includes('Recording')) enterRecording(); }).catch(() => {});
 loadSettings();
+
+// ---- first-run onboarding ----
+async function maybeOnboard() {
+  if (!currentSettings) { try { currentSettings = await invoke('get_settings'); } catch (e) { return; } }
+  if (currentSettings.general?.onboarded) return;
+  $('ob-savedir').textContent = currentSettings.general.save_dir;
+  document.querySelectorAll('#ob-backend span').forEach(sp =>
+    sp.classList.toggle('on', sp.dataset.b === currentSettings.refine.backend));
+  $('onboard').classList.add('on');
+}
+$('ob-savedir-btn').onclick = async () => {
+  try {
+    const dir = await window.__TAURI__.dialog.open({ directory: true, title: 'Choose save folder' });
+    if (dir && currentSettings) { currentSettings.general.save_dir = dir; $('ob-savedir').textContent = dir; }
+  } catch (e) {}
+};
+document.querySelectorAll('#ob-backend span').forEach(sp => sp.onclick = () => {
+  if (!currentSettings) return;
+  currentSettings.refine.backend = sp.dataset.b;
+  document.querySelectorAll('#ob-backend span').forEach(s => s.classList.toggle('on', s === sp));
+});
+$('ob-start').onclick = async () => {
+  if (!currentSettings) return;
+  currentSettings.general.onboarded = true;
+  await persistSettings();
+  $('onboard').classList.remove('on');
+};
+maybeOnboard();

@@ -39,6 +39,10 @@ pub struct GeneralCfg {
     pub obsidian_links: bool,
     pub theme: String,
     pub launch_on_login: bool,
+    /// Whether the first-run onboarding has been completed. `#[serde(default)]` so
+    /// configs written before this field load cleanly (treated as not onboarded).
+    #[serde(default)]
+    pub onboarded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -90,6 +94,7 @@ impl Default for Settings {
                 obsidian_links: true,
                 theme: "dark".into(),
                 launch_on_login: true,
+                onboarded: false,
             },
             sources: SourcesCfg {
                 mic_device: "default".into(),

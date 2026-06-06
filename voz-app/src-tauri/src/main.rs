@@ -373,8 +373,15 @@ fn tray_icon_for(app: &tauri::AppHandle, ts: TrayState) -> Option<Image<'static>
 fn first_run_defaults(mut settings: Settings) -> Settings {
     use voz_core::config::RefineBackend;
     if Settings::config_path().exists() {
-        return settings; // user already has a config; respect it
+        // Returning user: don't show onboarding again.
+        if !settings.general.onboarded {
+            settings.general.onboarded = true;
+            let _ = settings.save();
+        }
+        return settings;
     }
+    // Fresh install: pick a backend that works, and leave `onboarded = false` so the
+    // UI shows the welcome flow.
     if settings.refine.backend == RefineBackend::ClaudeCode
         && !voz_core::refine_backends::cli_on_path("claude")
     {

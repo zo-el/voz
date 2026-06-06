@@ -13,6 +13,14 @@
   .view.on { display: block; }
   .result { margin-top: 14px; }
   #search input::placeholder { color: var(--text-3); }
+  #onboard { display: none; position: absolute; inset: 0; z-index: 50; background: var(--panel); padding: 26px 18px; overflow-y: auto; }
+  #onboard.on { display: block; }
+  #onboard .seg span.on { background: var(--accent-soft); color: var(--accent-2); }
+  #toast { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%) translateY(10px);
+           max-width: 86%; background: var(--surface-hi); color: var(--text); border: 1px solid var(--border-hi);
+           border-radius: 10px; padding: 9px 13px; font-size: 12px; line-height: 1.4; text-align: center;
+           box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 60; }
+  #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -127,7 +135,34 @@
     <a data-view="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>History</a>
     <a data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
   </div>
-</div>
-<script src="app.js"></script>
+
+  <div id="toast"></div>
+
+  <!-- FIRST-RUN ONBOARDING (overlay) -->
+  <div id="onboard" data-tauri-drag-region>
+    <div class="logo" style="width:48px;height:48px;border-radius:14px;margin:0 auto 14px"><svg viewBox="0 0 24 24" width="28" height="28" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <h2 style="text-align:center;font-size:18px;margin-bottom:6px">Welcome to Voz</h2>
+    <p style="text-align:center;font-size:12.5px;color:var(--text-2);line-height:1.5;margin-bottom:20px">
+      Record your mic and the meeting audio you hear — transcribed <b>locally</b>.
+      Each recording becomes two notes: a verbatim transcript and a clean summary.
+    </p>
+    <div class="set-group"><h4>Where to save notes</h4>
+      <div class="row single"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+        <div class="txt"><div class="t">Save location</div><div class="s mono" id="ob-savedir">—</div></div>
+        <div class="ctrl-sm" id="ob-savedir-btn">Change</div></div>
+      <div class="hint-line" style="text-align:left;margin-top:6px">Tip: point this at your Obsidian vault.</div>
+    </div>
+    <div class="set-group"><h4>AI cleanup (optional)</h4>
+      <div class="seg" id="ob-backend" style="width:100%">
+        <span data-b="claude_code" style="flex:1;text-align:center">Claude Code</span>
+        <span data-b="ollama" style="flex:1;text-align:center">Ollama</span>
+        <span data-b="none" style="flex:1;text-align:center">Raw only</span>
+      </div>
+      <div class="hint-line" style="text-align:left;margin-top:6px" id="ob-backend-note">Turns the raw transcript into a clean note. Needs the tool installed; you can change this later.</div>
+    </div>
+    <button class="btn primary" id="ob-start" style="width:100%;margin-top:8px;padding:12px">Get started</button>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
