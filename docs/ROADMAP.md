@@ -56,8 +56,10 @@ recording + getting notes within a minute, with no terminal and no surprises.
 7. ⬜ **GNOME tray reliability + docs** (S) — verify the AppIndicator path across
    GNOME versions; detect a missing/disabled extension and guide the user; keep the
    app fully usable via window + hotkey without the tray.
-8. 🚧 **Accessibility pass** (M) — full keyboard path, focus order, ARIA labels,
-   screen-reader test, contrast/AA, reduced-motion (✅ already), large-text. *Why:*
+8. 🚧 **Accessibility pass** (M) — ✅ reduced-motion, ✅ keyboard path (Space=record,
+   Esc=back/close, Tab reaches custom controls via role/tabindex, Enter activates
+   them), ✅ ARIA labels on icon buttons + `aria-live` on the state pill & toast.
+   ⬜ Remaining: a real screen-reader pass, contrast/AA audit, large-text. *Why:*
    production apps are accessible.
 9. ✅ **Logging, diagnostics, crash safety** (S) — local rotated logs (no telemetry),
    a "copy diagnostics" button (redacted), panic-safe worker threads. *Why:*
@@ -89,8 +91,9 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
     no extra model, correct because the final transcript is the source of truth.
     *Future:* VAD-gated incremental chunks for long meetings.
 16. 🚧 **Real waveform + capture polish** (S) — ✅ waveform driven by real capture
-    level (`get_level` polled live) + live elapsed timer. ⬜ Remaining: per-source
-    (mic vs system) split visualization, smoother pause/resume, live word count.
+    level (`get_level` polled live), ✅ live elapsed timer, ✅ live word count (from
+    the streaming partials). ⬜ Remaining: per-source (mic vs system) split
+    visualization, smoother pause/resume.
 17. ✅ **Editable refinement prompt + style presets UI** (S) — Adaptive/Meeting/Memo/
     Custom, editable in Settings, with a live preview. *Dep:* none.
 18. ✅ **Model management UI** (M) — list/download/switch/delete models with sizes and

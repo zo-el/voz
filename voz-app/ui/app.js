@@ -103,6 +103,8 @@ function showPartial(text) {
   pt.textContent = text;
   pt.style.display = 'block';
   pt.scrollTop = pt.scrollHeight;
+  const words = (text.trim().match(/\S+/g) || []).length;
+  $('hint').textContent = `${words} word${words === 1 ? '' : 's'} transcribed so far`;
 }
 
 $('recbtn').onclick = async () => {
@@ -143,16 +145,27 @@ function appWindow() { try { return window.__TAURI__.window.getCurrentWindow(); 
 $('btn-min').onclick = () => { const w = appWindow(); if (w) w.minimize(); };
 $('btn-hide').onclick = () => { const w = appWindow(); if (w) w.hide(); };
 
-// ---- keyboard shortcuts (accessibility) ----
+// ---- keyboard shortcuts + accessibility ----
+const A11Y_SEL = '.ctrl-sm, .seg span, .srcpill button, .toggle, .back, .nav a, .hitem';
+// Make custom (non-native) controls reachable by Tab and announced as buttons.
+function a11yInit() {
+  document.querySelectorAll(A11Y_SEL).forEach(el => {
+    if (el.tagName !== 'BUTTON' && !el.getAttribute('role')) el.setAttribute('role', 'button');
+    if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
+  });
+}
+a11yInit();
 document.addEventListener('keydown', (e) => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   if ($('onboard').classList.contains('on')) return;
+  // Enter activates whatever custom control is focused (Space stays = record).
+  if (e.key === 'Enter' && e.target?.matches?.(A11Y_SEL)) { e.preventDefault(); e.target.click(); return; }
   const current = document.querySelector('.view.on')?.id;
   if (e.key === 'Escape') {
     if (current === 'view-note') showView('history');
     else if (current === 'view-models') showView('settings');
     else { const w = appWindow(); if (w) w.hide(); }
-  } else if (e.code === 'Space' && current === 'view-record') {
+  } else if (e.code === 'Space' && current === 'view-record' && e.target === document.body) {
     e.preventDefault(); $('recbtn').click();
   }
 });
@@ -181,6 +194,7 @@ async function loadHistory(query) {
     const b3 = document.createElement('span'); b3.textContent = r.backend || '';
     m.append(b1, b2, b3); body.append(t, m); item.append(when, body); list.appendChild(item);
   }
+  a11yInit();
 }
 // search box → full-text search over titles + transcript bodies (debounced)
 let searchTimer = null;
@@ -368,6 +382,7 @@ async function loadModels() {
     };
     row.append(ico, txt, btn); list.appendChild(row);
   }
+  a11yInit();
 }
 
 // ---- note detail ----

@@ -34,9 +34,9 @@
     <div class="logo" data-tauri-drag-region><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 8v8M17 8v8M3 11v2M21 11v2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
     <div class="name" data-tauri-drag-region>Voz</div>
     <div class="spacer" data-tauri-drag-region></div>
-    <div class="statepill" id="statepill"><span class="dot"></span> <span id="statetext">Ready</span></div>
-    <div class="iconbtn" id="btn-min" title="Minimize"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></div>
-    <div class="iconbtn" id="btn-hide" title="Hide to tray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+    <div class="statepill" id="statepill" role="status" aria-live="polite"><span class="dot"></span> <span id="statetext">Ready</span></div>
+    <div class="iconbtn" id="btn-min" title="Minimize" role="button" tabindex="0" aria-label="Minimize"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></div>
+    <div class="iconbtn" id="btn-hide" title="Hide to tray" role="button" tabindex="0" aria-label="Hide to tray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
   </div>
 
   <div class="body">
@@ -57,7 +57,7 @@
         <div class="wave idle" id="wave"></div>
         <div class="controls">
           <div class="sidebtn" id="btn-pause" title="Pause" style="visibility:hidden"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></div>
-          <button class="recbtn" id="recbtn" title="Record"><svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg></button>
+          <button class="recbtn" id="recbtn" title="Record" aria-label="Start or stop recording"><svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg></button>
           <div class="sidebtn" id="btn-cancel" title="Cancel" style="visibility:hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
         </div>
         <div class="hint-line" id="hint">Click the mic, or the tray icon, to record</div>
@@ -155,7 +155,7 @@
     <a data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Settings</a>
   </div>
 
-  <div id="toast"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <!-- FIRST-RUN ONBOARDING (overlay) -->
   <div id="onboard" data-tauri-drag-region>
