@@ -18,9 +18,26 @@ compact olive-dark panel drops down with the source selector (Mic / System / Bot
 record / pause / stop, the live raw transcript and its refined note, history, and
 settings.
 
-> **Status: planning & design — nothing is built yet.** This repo currently
-> contains research, architecture, and visual mockups for review/collaboration
-> before implementation begins.
+> **Status: working app (M0–M7).** The full local pipeline is built and verified —
+> dual-source capture → local Whisper → Me/Them attribution → LLM refine → two
+> linked Obsidian notes → SQLite history → tray GUI, with crash-recovery, zero-setup
+> model auto-fetch, and a global hotkey. 58 `voz-core` tests; clippy `-D warnings`
+> clean. Remaining: COSMIC/Wayland hotkey + anchored dropdown, CUDA GPU build, and
+> manual QA across desktops. See `docs/PLAN.md`.
+
+## Try it
+
+```bash
+# build + run (debug)
+cargo build --manifest-path voz-app/src-tauri/Cargo.toml
+DISPLAY=:1 ./voz-app/src-tauri/target/debug/voz-app
+
+# or install the package
+cd voz-app/src-tauri && cargo tauri build --bundles deb
+sudo apt install ./target/release/bundle/deb/Voz_0.1.0_amd64.deb
+```
+First run with no model auto-downloads `base.en` (verified). Run `voz-core`'s tests
+with `cargo test -p voz-core --features engine`. Full build notes: `BUILD.md`.
 
 ## What's here
 
