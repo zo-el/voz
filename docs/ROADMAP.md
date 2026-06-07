@@ -8,17 +8,24 @@ Status legend: ✅ done · 🚧 in progress · ⬜ planned.
 
 ---
 
-## Where we are (v0.1.0)
+## Where we are
 ✅ `voz-core` engine (capture → transcribe → attribute → refine → store → history),
-59 tests, clippy-clean · ✅ dual-source PipeWire capture · ✅ local whisper.cpp ·
-✅ refine backends (Claude Code / Codex / Ollama / Claude API) · ✅ two linked
-Obsidian notes + SQLite history · ✅ Tauri tray GUI (movable window, tray menu,
-interactive+persisted settings, openable history) · ✅ crash-recovery spool ·
-✅ zero-setup model auto-fetch · ✅ global hotkey (X11) · ✅ `.deb` package.
+**71 tests**, clippy-clean · ✅ dual-source PipeWire capture · ✅ local whisper.cpp
+(CPU + **verified CUDA** on an RTX 3080) · ✅ refine backends (Claude Code / Codex /
+Ollama / Claude API) + **editable Custom prompt** · ✅ two linked Obsidian notes +
+SQLite history with **full-text search** · ✅ **first-run onboarding** · ✅ Tauri tray
+GUI (best-effort tray, **tray-anchored** movable window, in-app **note detail**,
+full persisted settings) · ✅ **live streaming partials** + word count · ✅ **file
+import** (any audio/video via ffmpeg) · ✅ **dictation** (type at cursor) ·
+✅ **rebindable hotkey** · ✅ crash-recovery spool · ✅ zero-setup model auto-fetch +
+**tiered model manager** · ✅ **logging/diagnostics** + **in-app update check** ·
+✅ friendly **error toasts** · ✅ accessibility (keyboard + ARIA) · ✅ `.deb` +
+AppImage + **CI auto-release** + **slow lane** + Flatpak files + cargo-deny gate.
 
-**The honest gap to "a stranger installs it and it just works":** onboarding,
-graceful fallbacks when optional tools are missing, robust packaging across distros,
-every error state handled, and the Wayland/COSMIC story. That's Phase 1.
+**What's deliberately left (see "Disposition" at the end):** the items that need
+*other hardware* (cross-distro QA, macOS/Windows), *external accounts* (Flathub
+listing), a *COSMIC session* (native applet), or *large ML* (diarization) — these
+are scoped and deferred with a concrete next step rather than half-built.
 
 ---
 
@@ -166,7 +173,7 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
   ✅ "transcript is data, never code" invariant (refine prompt fixed, transcript
   delimited, passed on stdin/argv never shell), ✅ `SECURITY.md`. ⬜ Remaining: fuzz
   the parsers (WAV/front-matter/markdown).
-- 🚧 **Testing**: ✅ 72 unit tests + ✅ a slow lane (real whisper integration in CI).
+- 🚧 **Testing**: ✅ 71 unit tests + ✅ a slow lane (real whisper integration in CI).
   ⬜ Remaining: a coverage gate, E2E via `tauri-driver`, perf budgets (RTF/memory).
 - 🚧 **Privacy**: ✅ local-first, no telemetry; ✅ raw-only (refine=None) builds no
   network refiner (unit-tested) so an installed-model offline session opens no
@@ -176,10 +183,52 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 
 ---
 
-## Suggested near-term order
-1. Phase 1 #2 (backend fallback) + #4 (error states) + #5 (`.deb` deps) — *make the
-   current build not-scary for a stranger.*  ← starting now
-2. Phase 1 #1 (onboarding) + #3 (model UX).
-3. Phase 1 #5/#6 (AppImage/Flatpak + CI release) → first public release.
-4. Phase 2 #12 (note detail) + #14 (portal hotkey) + #19 (settings coverage).
-5. Phase 3/4 as the audience grows.
+## Disposition of remaining work
+
+Every item above is now ✅ done or 🚧 with the finished parts marked. What's left is
+**blocked on resources this repo can't provide**, or is a **large feature deferred
+on purpose**. Each has a concrete decision + next step so nothing is open-ended.
+
+### Blocked on hardware / environment (can't be done or verified here)
+- **#10 Cross-distro QA** — *defer.* Needs real Ubuntu/Fedora/COSMIC machines or VMs.
+  Next: a test matrix + a manual checklist run before the first public release.
+- **#27 COSMIC native applet** — *defer.* Scaffold + engine wiring exist
+  (`cosmic-applet/`); needs a COSMIC session and a pinned `libcosmic` to build. Next:
+  implement `cosmic::Application` on that environment.
+- **#28 macOS / Windows** — *defer.* Tauri + `voz-core` are portable, but each needs
+  its own OS to build/test (and capture rewired off PipeWire). Next: a macOS spike
+  (CoreML/Metal whisper, ScreenCaptureKit audio).
+- **#14 Wayland portal hotkey** — *partial/defer.* X11 + rebinding done; the GNOME
+  48/COSMIC GlobalShortcuts **portal** path needs a Wayland session to wire & test.
+
+### Blocked on an external account / submission
+- **#29 Flathub + distro packages** — *defer.* Flatpak manifest/metainfo are written
+  & validated; listing needs a Flathub PR + the `pw-record` bundling fix (#5). Next:
+  resolve #5's PipeWire question, then submit. AUR/COPR are mechanical follow-ons.
+- **#5 Flatpak install** — *partial.* Real blocker documented: `pw-record` isn't in
+  the GNOME runtime. Next (a *better path*): move capture from the `pw-record` CLI to
+  **libpipewire**/the audio portal — removes the bundling problem and helps Wayland.
+
+### Large features — deferred by choice (scoped, not started)
+- **#21 Diarization (>2 speakers)** — *defer.* Mic/monitor already gives Me/Them for
+  free; clustering the system stream needs an embedding model (pyannote/sortformer).
+  Next: evaluate a small ONNX diarizer behind the existing `Speaker` attribution.
+- **#23 Modes / profiles** — *defer.* The pieces exist (source, style, model, hotkey);
+  a "profile" is a saved bundle + optional per-app activation. Next: a `profiles`
+  config table + a switcher in the panel header.
+- **#26 Deeper Obsidian** — *partial.* Notes already use `[[wikilinks]]` + `tags:[voz]`
+  front-matter. Next: templates, daily-note append, an optional companion plugin.
+- **#30 Localization** — *defer.* The engine transcribes ~99 languages already; UI
+  i18n is the work. Next: extract UI strings to a catalog + a `t()` helper, then
+  translate. Low priority until there's an audience.
+- **#31 Local-first sync/backup** — *defer.* Out of scope for v1 by design (notes are
+  plain files in your vault — use the vault's own sync). Next: an opt-in encrypted
+  backup only if users ask.
+
+### Cross-cutting tails (incremental, do alongside features)
+- Fuzz the parsers (WAV/front-matter); coverage gate + `tauri-driver` E2E; a
+  "no sockets offline" CI assertion; a landing page + screenshots.
+
+**Bottom line:** the roadmap's *implementable-here* surface is done and verified; the
+remainder is explicitly dispositioned (defer + reason + next step) rather than left
+ambiguous.
