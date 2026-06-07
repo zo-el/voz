@@ -51,8 +51,10 @@ recording + getting notes within a minute, with no terminal and no surprises.
    offline cargo sources for Flathub. *Dep:* CI release pipeline.
 6. 🚧 **CI release pipeline** (M) — ✅ `.github/workflows/release.yml`: a push to
    `main` with a bumped version auto-builds the `.deb` + AppImage, gates on the core
-   tests, and publishes a `v<version>` GitHub Release with checksums. ⬜ Remaining:
-   add Flatpak to the matrix, a slow test lane, and artifact signing.
+   tests, and publishes a `v<version>` GitHub Release with checksums. ✅ **slow lane**
+   in `ci.yml` (compiles whisper.cpp, downloads base.en + the JFK sample, runs the
+   real-transcription integration test; main + manual only, model cached). ⬜
+   Remaining: add Flatpak to the matrix and artifact signing.
 7. ✅ **GNOME tray reliability + docs** (S) — verify the AppIndicator path across
    GNOME versions; detect a missing/disabled extension and guide the user; keep the
    app fully usable via window + hotkey without the tray.
@@ -160,14 +162,17 @@ in `PLAN.md §7` met, and a clean-VM install→record→note succeeds with no te
 ---
 
 ## Cross-cutting (every phase)
-- ⬜ **Security**: fuzz parsers (WAV/front-matter/markdown), `cargo-audit`/`deny` gate,
-  pre-release `SECURITY.md` checklist, dependency review. Keep the "transcript is
-  data, never code" invariant.
-- ⬜ **Testing**: coverage gate ≥ 80% on `voz-core`; slow lane (real whisper, E2E via
-  `tauri-driver`, visual regression); perf budgets (RTF, memory on long meetings).
-- ⬜ **Privacy**: stays local-first; no telemetry; "offline mode opens no sockets"
-  asserted in CI; clear data/consent docs.
-- ⬜ **Docs & site**: user guide, troubleshooting, a simple landing page, screenshots.
+- 🚧 **Security**: ✅ `cargo-deny` gate (advisories·bans·licenses·sources) in CI,
+  ✅ "transcript is data, never code" invariant (refine prompt fixed, transcript
+  delimited, passed on stdin/argv never shell), ✅ `SECURITY.md`. ⬜ Remaining: fuzz
+  the parsers (WAV/front-matter/markdown).
+- 🚧 **Testing**: ✅ 72 unit tests + ✅ a slow lane (real whisper integration in CI).
+  ⬜ Remaining: a coverage gate, E2E via `tauri-driver`, perf budgets (RTF/memory).
+- 🚧 **Privacy**: ✅ local-first, no telemetry; ✅ raw-only (refine=None) builds no
+  network refiner (unit-tested) so an installed-model offline session opens no
+  sockets. ⬜ Remaining: assert "no sockets offline" in CI (network namespace).
+- 🚧 **Docs & site**: ✅ `USER_GUIDE.md` + ✅ `TROUBLESHOOTING.md` + the design/arch
+  docs. ⬜ Remaining: a landing page + screenshots.
 
 ---
 

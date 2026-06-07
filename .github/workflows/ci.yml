@@ -4,6 +4,7 @@ on:
   push:
     branches: [develop, main]
   pull_request:
+  workflow_dispatch: {}
 
 env:
   CARGO_TERM_COLOR: always
@@ -44,7 +45,7 @@ jobs:
           cargo test -p voz-core --features engine
 
   supply-chain:
-    name: cargo-deny
+    name: cargo-deny (advisories · bans · licenses · sources)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -52,5 +53,34 @@ jobs:
         with:
           command: check advisories bans licenses sources
 
-  # Slow lane (real whisper integration, fuzz, E2E) is added with those layers;
-  # see docs/TESTING.md §4.
+  # Slow lane: compiles whisper.cpp and runs the real-transcription integration test
+  # against the base.en model + the JFK sample. Heavy (~10 min), so only on main
+  # pushes + manual dispatch — not every PR. See docs/TESTING.md §4.
+  slow:
+    name: slow lane (real whisper)
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libpipewire-0.3-dev cmake clang
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache the base.en model
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/voz/models/ggml-base.en.bin
+          key: whisper-base-en-v1
+      - name: Fetch model + sample if missing
+        run: |
+          mkdir -p "$HOME/.local/share/voz/models"
+          MODEL="$HOME/.local/share/voz/models/ggml-base.en.bin"
+          [ -f "$MODEL" ] || curl -fsSL -o "$MODEL" \
+            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+          curl -fsSL -o /tmp/jfk.wav \
+            https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav
+      - name: Real-transcription integration test
+        run: cargo test -p voz-core --features "whisper audio" -- --ignored --nocapture
