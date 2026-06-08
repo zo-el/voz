@@ -1,17 +1,19 @@
 # Build plan — Voz
 
-Status: **implementation underway — M0–M5b done & verified, M6–M7 in progress.**
+Status: **all milestones M0–M7 delivered** (v0.1.0 shipped, then a large feature
+pass). This is the original build plan and Definition of Done — kept for the scope,
+decisions, and DoD rationale. **For the current, living state of the project see
+[`ROADMAP.md`](ROADMAP.md)** (what's done, in progress, and the disposition of the
+rest).
 
-Done (each committed on `develop`, clippy `-D warnings` clean, fmt clean):
+Delivered (each committed on `develop`, clippy `-D warnings` clean, fmt clean):
 - **M0** scaffold + tested `voz-core` · **M1** dual-source capture (pw-record;
-  verified live) · **M2** whisper.cpp transcription (verified on jfk.wav) ·
-  **M3** refine backends (Claude Code verified end-to-end) · **M4** two linked
-  notes + WAV + SQLite history · **M5a** engine (record→bg job→save→index;
-  verified live) · **M5b** Tauri app + tray + SPA (verified running on X11).
-- 57 `voz-core` tests; the full local pipeline works with real audio/whisper/
-  Claude Code/files.
-- **In progress:** M6 packaging (.deb/AppImage), M7 final hardening (more security
-  tests, accessibility, CI slow lane, manual QA matrix).
+  verified live) · **M2** whisper.cpp transcription (verified on jfk.wav, + CUDA on
+  an RTX 3080) · **M3** refine backends (Claude Code verified end-to-end) · **M4**
+  two linked notes + WAV + SQLite history · **M5a** engine (record→bg job→save→index)
+  · **M5b** Tauri app + tray + SPA · **M6** packaging (.deb/AppImage + CI release) ·
+  **M7** hardening (logging/diagnostics, accessibility, CI slow lane, supply-chain
+  gate). 71 `voz-core` tests.
 
 **Decisions locked (2026-06-05):**
 - **Name:** Voz.

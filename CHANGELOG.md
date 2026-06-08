@@ -3,6 +3,38 @@
 All notable changes to Voz. Format: [Keep a Changelog](https://keepachangelog.com/),
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Substantial UX + power-feature pass on top of 0.1.0 (on `develop`).
+
+### Added
+- **First-run onboarding** — welcome → choose save folder → pick AI-cleanup backend.
+- **In-app note detail** — open a History note in-panel: Raw/Refined toggle, Copy,
+  Open in Obsidian, **Re-refine** with another style, **Export** (.txt/.md),
+  **Type at cursor** (dictation), Delete.
+- **Full-text search** over titles *and* transcript bodies (one-time backfill of
+  existing notes).
+- **Live streaming partials** — a "◉ LIVE" transcript preview + word count while
+  recording (the final transcript stays authoritative).
+- **Audio/video file import** — transcribe an existing file via ffmpeg.
+- **Editable Custom refine prompt** (alongside Adaptive/Meeting/Memo).
+- **Rebindable global hotkey**; **tray-anchored** window placement on X11.
+- **GPU acceleration**: Acceleration selector + runtime auto-detect ("Now: CUDA —
+  NVIDIA GPU" / "CPU"); CUDA build verified on an RTX 3080.
+- **Model manager** with Fast/Balanced/Accurate tiers + live download progress.
+- **Logging & diagnostics** (local, no telemetry) + **in-app update check**.
+- **Friendly error states** (toasts) and an **accessibility** pass (keyboard + ARIA).
+- **CI auto-release** workflow + a slow lane (real-whisper integration);
+  `docs/USER_GUIDE.md`, `docs/TROUBLESHOOTING.md`, Flatpak packaging files, and a
+  COSMIC applet scaffold.
+
+### Changed
+- Tray is now **best-effort** — a missing StatusNotifier host no longer prevents the
+  app from launching (window + hotkey remain usable).
+
+### Engineering
+- `voz-core`: **71 tests**, `clippy -D warnings` clean, fmt clean.
+
 ## [0.1.0] — 2026-06-05
 
 First working version: a local-first Linux recorder + transcriber with a tray GUI.
@@ -42,4 +74,5 @@ First working version: a local-first Linux recorder + transcriber with a tray GU
 - No first-run onboarding yet; model is fetched, not bundled.
 - GPU build is opt-in (`--features cuda` / `vulkan`); CPU by default.
 
-[0.1.0]: https://github.com/USER/voz/releases/tag/v0.1.0
+[Unreleased]: https://github.com/zo-el/voz/compare/v0.1.0...develop
+[0.1.0]: https://github.com/zo-el/voz/releases/tag/v0.1.0

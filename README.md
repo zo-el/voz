@@ -1,4 +1,4 @@
-# Voz — local recorder + transcriber (planning)
+# Voz — local recorder + transcriber
 
 A tray-resident Linux app (GNOME + COSMIC) that records your **microphone and/or
 the system audio you hear** — so it captures meetings locally without ever joining
@@ -18,12 +18,16 @@ compact olive-dark panel drops down with the source selector (Mic / System / Bot
 record / pause / stop, the live raw transcript and its refined note, history, and
 settings.
 
-> **Status: working app (M0–M7).** The full local pipeline is built and verified —
+> **Status: working app.** The full local pipeline is built and verified —
 > dual-source capture → local Whisper → Me/Them attribution → LLM refine → two
-> linked Obsidian notes → SQLite history → tray GUI, with crash-recovery, zero-setup
-> model auto-fetch, and a global hotkey. 58 `voz-core` tests; clippy `-D warnings`
-> clean. Remaining: COSMIC/Wayland hotkey + anchored dropdown, CUDA GPU build, and
-> manual QA across desktops. See `docs/PLAN.md`.
+> linked Obsidian notes → SQLite full-text history → tray GUI. On top of that:
+> first-run **onboarding**, in-app **note detail** (re-refine / export / dictate),
+> **live streaming partials**, audio/video **file import**, **rebindable hotkey**,
+> **GPU auto-detect** (CUDA verified on an RTX 3080), tiered **model manager**,
+> **logging/diagnostics**, **in-app update check**, friendly error states, and a
+> keyboard/ARIA accessibility pass. 71 `voz-core` tests; clippy `-D warnings` clean;
+> `.deb` + AppImage + **CI auto-release**. Remaining work is scoped in
+> [`docs/ROADMAP.md`](docs/ROADMAP.md) (COSMIC applet, cross-distro QA, Flathub).
 
 ## Try it
 
@@ -43,16 +47,17 @@ with `cargo test -p voz-core --features engine`. Full build notes: `BUILD.md`.
 
 | Path | What |
 |---|---|
-| [`docs/RESEARCH.md`](docs/RESEARCH.md) | Competitive landscape, the Wayland tray reality, local-Whisper stack — with citations |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The `voz-core` Rust crate, the capture→transcribe→refine pipeline, dual-source audio, data model, settings, packaging |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | Visual language + a walkthrough of every screen |
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | How to record, review history, configure, and the privacy guarantee |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | No tray, no audio, raw-only fallback, import, GPU, hotkey, logs |
+| [`BUILD.md`](BUILD.md) | Build from source, system deps, and the CPU / CUDA / Vulkan recipes |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Living roadmap: what's done, in progress, and the disposition of the rest |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The `voz-core` crate, the capture→transcribe→refine pipeline, data model, packaging |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model + controls (XSS, subprocess, secrets, sandbox, supply chain) |
 | [`docs/TESTING.md`](docs/TESTING.md) | Test pyramid, tooling, CI lanes, coverage gate, QA matrix |
-| [`docs/PLAN.md`](docs/PLAN.md) | Scope, milestones (M0–M7), Definition of Done, decisions, open questions |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phased roadmap from v0.1.0 → production-ready → power features |
+| [`docs/DESIGN.md`](docs/DESIGN.md) / [`docs/RESEARCH.md`](docs/RESEARCH.md) | Visual language + screen walkthrough; competitive landscape + citations |
+| [`docs/PLAN.md`](docs/PLAN.md) | Original scope, milestones, and Definition of Done (historical — see ROADMAP for current state) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
-| [`design/mockups/`](design/mockups) | High-fidelity HTML/CSS mockups (open in a browser) |
-| [`design/out/`](design/out) | Rendered PNGs of every screen |
+| [`design/mockups/`](design/mockups) · [`design/out/`](design/out) | High-fidelity HTML/CSS mockups + rendered PNGs (original design) |
 
 ## See the design
 
@@ -79,8 +84,9 @@ true anchored dropdown — reusing the same Rust core. Details and alternatives 
 - **Capture:** mic + system-audio loopback (PipeWire monitor); **Both** is the
   default for local meeting capture, with Me/Them speaker labels. No meeting
   integration — it only records what's already playing.
-- **Transcription:** whisper.cpp via `whisper-rs`, default `large-v3-turbo q5_0`,
-  CPU + Vulkan/CUDA. **Bundled with the app** — zero manual setup, works offline.
+- **Transcription:** whisper.cpp via `whisper-rs`, CPU + Vulkan/CUDA. The default
+  model is **auto-fetched on first run** (zero manual setup) and a tiered model
+  manager (Fast / Balanced / Accurate) lets you switch; it works fully offline after.
 - **Record while processing:** Stop hands the recording to a **background job
   queue**, so the recorder is instantly free for the next one. Jobs live in the
   **History** tab; the **tray icon shows state** (recording = red, processing =
