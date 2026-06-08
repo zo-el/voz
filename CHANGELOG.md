@@ -5,9 +5,11 @@ All notable changes to Voz. Format: [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
-## [0.2.0] — 2026-06-08
+## [0.3.0] — 2026-06-08
 
-Substantial UX + power-feature pass on top of 0.1.0.
+The first broadly-compatible release of the substantial UX + power-feature pass on
+top of 0.1.0. (The 0.2.x builds were superseded before a working release shipped —
+0.2.0's binaries required glibc 2.38+ and wouldn't start on 22.04.)
 
 ### Added
 - **First-run onboarding** — welcome → choose save folder → pick AI-cleanup backend.
@@ -37,6 +39,13 @@ Substantial UX + power-feature pass on top of 0.1.0.
 ### Changed
 - Tray is now **best-effort** — a missing StatusNotifier host no longer prevents the
   app from launching (window + hotkey remain usable).
+
+### Fixed
+- **Release packaging runs across distros.** Bundles are built on Ubuntu 22.04
+  (glibc 2.35) so they run on Pop!_OS / Ubuntu 22.04 and everything newer — a 24.04
+  build needed glibc 2.38+ and wouldn't start. CI also installs the appindicator dev
+  lib the tray app needs to bundle, and the three GPU variants build in parallel
+  (Vulkan's `glslc` from the LunarG SDK; CUDA from the `ubuntu2204` repo).
 
 ### Engineering
 - `voz-core`: **71 tests**, `clippy -D warnings` clean, fmt clean.

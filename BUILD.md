@@ -113,8 +113,8 @@ section above so the linker picks 12.x over any older distro `libcudart`).
 ## Packaging (.deb — verified)
 ```bash
 cd voz-app/src-tauri && cargo tauri build --bundles deb
-# -> target/release/bundle/deb/Voz_0.2.0_amd64.deb   (~7 MB, CPU build)
-# install:  sudo apt install ./Voz_0.2.0_amd64.deb
+# -> target/release/bundle/deb/Voz_0.3.0_amd64.deb   (~7 MB, CPU build)
+# install:  sudo apt install ./Voz_0.3.0_amd64.deb
 ```
 For an AppImage too: `--bundles deb appimage` (downloads appimagetool on first run).
 
