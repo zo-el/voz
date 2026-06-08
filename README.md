@@ -103,7 +103,7 @@ cargo build --manifest-path voz-app/src-tauri/Cargo.toml
 
 # …or build an installable package
 cd voz-app/src-tauri && cargo tauri build --bundles deb
-sudo apt install ./target/release/bundle/deb/Voz_0.1.0_amd64.deb
+sudo apt install ./target/release/bundle/deb/Voz_0.2.0_amd64.deb
 ```
 
 First launch walks you through a save folder + cleanup choice and auto-downloads a

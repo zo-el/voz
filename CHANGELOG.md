@@ -5,7 +5,9 @@ All notable changes to Voz. Format: [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
-Substantial UX + power-feature pass on top of 0.1.0 (on `develop`).
+## [0.2.0] — 2026-06-08
+
+Substantial UX + power-feature pass on top of 0.1.0.
 
 ### Added
 - **First-run onboarding** — welcome → choose save folder → pick AI-cleanup backend.
