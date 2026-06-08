@@ -1,49 +1,122 @@
-# Voz — local recorder + transcriber
+# Voz — record, transcribe, and own your notes. Locally.
 
-A tray-resident Linux app (GNOME + COSMIC) that records your **microphone and/or
-the system audio you hear** — so it captures meetings locally without ever joining
-them — transcribes **locally** with Whisper, and turns each recording into **two
-linked notes: a Raw verbatim transcript and a Refined note** (detailed, non-lossy
-summary / decisions / action items). Refinement runs through an LLM you choose
-(Claude Code / Codex CLI, a local model, or the Claude API). Everything stays on
-your machine; the only optional network call is the refine step, which can be
-fully local or turned off.
+**Voz records your microphone and the meeting audio you hear, transcribes it on your
+own machine with Whisper, and saves the result as plain Markdown in a folder you
+choose.** No account, no upload of your audio, no lock-in. It lives in your system
+tray — click it (or hit a hotkey) and a small panel drops down to record, review,
+search, and manage everything.
 
-Notes are written as **Obsidian-friendly Markdown** (YAML front-matter + a
-`[[wikilink]]` from the refined note to the raw) into a **save folder you choose**
-— point it at your Obsidian vault and read the detailed docs there.
+It's built for one job: **capture spoken information privately and turn it into notes
+you actually own** — meetings, calls, voice memos, interviews — without handing your
+recordings to someone else's cloud.
 
-The tray icon *is* the whole app: click it (or hit the global hotkey) and a
-compact olive-dark panel drops down with the source selector (Mic / System / Both),
-record / pause / stop, the live raw transcript and its refined note, history, and
-settings.
+---
 
-> **Status: working app.** The full local pipeline is built and verified —
-> dual-source capture → local Whisper → Me/Them attribution → LLM refine → two
-> linked Obsidian notes → SQLite full-text history → tray GUI. On top of that:
-> first-run **onboarding**, in-app **note detail** (re-refine / export / dictate),
-> **live streaming partials**, audio/video **file import**, **rebindable hotkey**,
-> **GPU auto-detect** (CUDA verified on an RTX 3080), tiered **model manager**,
-> **logging/diagnostics**, **in-app update check**, friendly error states, and a
-> keyboard/ARIA accessibility pass. 71 `voz-core` tests; clippy `-D warnings` clean;
-> `.deb` + AppImage + **CI auto-release**. Remaining work is scoped in
-> [`docs/ROADMAP.md`](docs/ROADMAP.md) (COSMIC applet, cross-distro QA, Flathub).
+## Why Voz
+
+Most "AI notetakers" upload your audio to their servers. Voz doesn't. Recording and
+transcription happen **entirely on your computer**, and the notes are **plain `.md`
+files in your vault** (Obsidian-friendly) — not a proprietary database. You can read,
+edit, grep, sync, or delete them with any tool, forever. If this project vanished
+tomorrow, your notes would still be sitting there as readable text.
+
+## What you get — the good
+
+- **Fully local recording + transcription.** whisper.cpp runs on your CPU (or GPU).
+  Your **audio never leaves the machine**, and it works offline.
+- **Records meetings without joining them.** Captures your mic *and* the system audio
+  you hear (PipeWire monitor) — both sides of a call, locally, with simple Me/Them
+  labels, no bot in the meeting.
+- **Two notes per recording, both yours.** A **Raw** verbatim transcript (the source
+  of truth) and a **Refined** clean summary, linked, as Markdown with front-matter,
+  saved wherever you point it.
+- **AI cleanup is your choice.** Summarize with a local model (Ollama), a CLI you
+  already have (Claude Code / Codex), the Claude API — or **turn it off** and keep
+  only the raw transcript. A "lossless guard" flags anything the summary dropped, and
+  the raw is always kept.
+- **Find and reuse anything.** Full-text search across every transcript; open notes
+  in-app to copy, export (.txt/.md), re-summarize in another style, dictate at the
+  cursor, import an existing audio/video file, or open in Obsidian.
+- **Stays out of your way.** Recording and transcription run in the background and
+  survive a crash; the model auto-downloads on first run; a live preview shows the
+  transcript as you talk.
+- **No telemetry, ever.** Local logs only; the "copy diagnostics" button redacts your
+  transcripts and paths. Open source (Apache-2.0).
+
+## What it doesn't do — the honest part
+
+- **Linux only, and X11 is the smooth path.** Runs great on GNOME/X11 today. On
+  GNOME-**Wayland** the tray-anchored dropdown and global hotkey are limited by the
+  platform (see the constraint note below); a native **COSMIC** applet is scaffolded
+  but not built. **No macOS/Windows yet.**
+- **The default summary uses a cloud model.** Out of the box, AI cleanup is **Claude
+  Code**, which sends the **transcript text** (never the audio) to Anthropic. Want
+  *everything* local? Pick **Ollama** or set cleanup to **None** — both keep all text
+  on your machine. This is the one place data can leave, and it's your choice.
+- **GPU isn't automatic in the released build.** The default download is **CPU** (runs
+  everywhere). GPU (CUDA/Vulkan) is fast but currently needs a from-source build.
+- **As good as the model + the audio.** Small models are fast but err; accurate models
+  are slower and larger. Speaker labels are mic-vs-system only — it won't separate
+  multiple people on the *same* stream (no diarization yet).
+- **It's young.** A working, tested app (71 core tests) — but not yet hardened across
+  many distros, and not on Flathub. Install is `.deb` / AppImage / from source.
+
+## Where your data lives — the security model, plainly
+
+| Thing | Where it goes |
+|---|---|
+| **Your audio** | Recorded + transcribed **on your machine**, never uploaded. Optionally kept as a `.wav` next to the notes, or discarded. |
+| **Raw transcript** | A Markdown file in **your** folder. Never sent anywhere by Voz. |
+| **Refined summary** | Produced by the backend **you choose**: Ollama / None = stays local; Claude Code / Claude API / Codex = the **text** is sent to that provider (opt-in). |
+| **History index** | A local SQLite cache (your Markdown notes remain the real copy). |
+| **Logs / diagnostics** | A local file. No telemetry. Diagnostics are redacted (no transcripts, no paths). |
+
+**The only network connections Voz makes:** (1) the optional cloud refine backend
+*if you pick one*; (2) a one-time model download on first run; (3) an update check
+against the GitHub releases feed (read-only — it never executes fetched code). Choose
+**Ollama or None** for cleanup and Voz is fully offline after that first download.
+
+Under the hood, the transcript is treated as **untrusted data** — handed to refine
+backends over stdin/argv, never built into a shell command (nothing you *say* can
+inject a command), with a fixed prompt and a delimited transcript. The webview runs
+under a strict CSP + a minimal capability allowlist, and a `cargo-deny` gate watches
+the dependency supply chain. Details: [`docs/SECURITY.md`](docs/SECURITY.md).
+
+## Is it for you?
+
+**Good fit if** you take a lot of spoken notes or meetings, you value privacy and want
+your data as plain files, you're on Linux, and you're fine installing a `.deb`/AppImage
+(or building once for GPU).
+
+**Not yet, if** you need macOS/Windows, a one-click app-store install, a polished
+Wayland/COSMIC experience, or built-in diarization for many speakers.
 
 ## Try it
 
 ```bash
 # build + run (debug)
 cargo build --manifest-path voz-app/src-tauri/Cargo.toml
-DISPLAY=:1 ./voz-app/src-tauri/target/debug/voz-app
+./voz-app/src-tauri/target/debug/voz-app
 
-# or install the package
+# …or build an installable package
 cd voz-app/src-tauri && cargo tauri build --bundles deb
 sudo apt install ./target/release/bundle/deb/Voz_0.1.0_amd64.deb
 ```
-First run with no model auto-downloads `base.en` (verified). Run `voz-core`'s tests
-with `cargo test -p voz-core --features engine`. Full build notes: `BUILD.md`.
 
-## What's here
+First launch walks you through a save folder + cleanup choice and auto-downloads a
+model. **Usage:** [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) · **Build + GPU recipes:**
+[`BUILD.md`](BUILD.md) · **Fixes:** [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
+
+## The Wayland/GNOME tray reality (one honest constraint)
+
+A pixel-anchored tray dropdown is achievable natively on **COSMIC** (a libcosmic
+applet) but **structurally impossible on GNOME-Wayland** for *any* framework (no
+layer-shell, no client-set global coordinates, no native tray). So Voz ships one
+cross-desktop app first — a frameless panel placed near the tray (fine on Pop!_OS /
+X11) — and a native COSMIC applet comes later for the true anchored dropdown, reusing
+the same Rust core. The window + global hotkey keep it fully usable everywhere.
+
+## Docs
 
 | Path | What |
 |---|---|
@@ -54,48 +127,12 @@ with `cargo test -p voz-core --features engine`. Full build notes: `BUILD.md`.
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The `voz-core` crate, the capture→transcribe→refine pipeline, data model, packaging |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model + controls (XSS, subprocess, secrets, sandbox, supply chain) |
 | [`docs/TESTING.md`](docs/TESTING.md) | Test pyramid, tooling, CI lanes, coverage gate, QA matrix |
-| [`docs/DESIGN.md`](docs/DESIGN.md) / [`docs/RESEARCH.md`](docs/RESEARCH.md) | Visual language + screen walkthrough; competitive landscape + citations |
-| [`docs/PLAN.md`](docs/PLAN.md) | Original scope, milestones, and Definition of Done (historical — see ROADMAP for current state) |
+| [`docs/DESIGN.md`](docs/DESIGN.md) · [`docs/RESEARCH.md`](docs/RESEARCH.md) | Visual language + screen walkthrough; competitive landscape + citations |
+| [`docs/PLAN.md`](docs/PLAN.md) | Original scope / milestones / Definition of Done (historical — see ROADMAP for current state) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
-| [`design/mockups/`](design/mockups) · [`design/out/`](design/out) | High-fidelity HTML/CSS mockups + rendered PNGs (original design) |
+| [`design/mockups/`](design/mockups) · [`design/out/`](design/out) | Original high-fidelity HTML/CSS mockups + rendered PNGs |
 
-## See the design
+## License
 
-Open any `design/mockups/panel-*.html` in a browser, or look at the rendered PNGs
-in `design/out/` (start with `tray-context.png`). To re-render after edits:
-
-```bash
-npm install          # one-time (Playwright + Chromium)
-node design/render.mjs
-```
-
-## The one big constraint (please read)
-
-A pixel-anchored tray dropdown is achievable natively on **COSMIC** (a libcosmic
-applet) but **structurally impossible on GNOME-Wayland** for *any* framework
-(no layer-shell, no client-set global coordinates, no native tray). The plan is to
-ship one cross-desktop Tauri app first (frameless panel placed near the tray on
-GNOME, which is fine on Pop!_OS), and add a native COSMIC applet later for the
-true anchored dropdown — reusing the same Rust core. Details and alternatives in
-[`docs/PLAN.md`](docs/PLAN.md).
-
-## Headline choices (locked)
-
-- **Capture:** mic + system-audio loopback (PipeWire monitor); **Both** is the
-  default for local meeting capture, with Me/Them speaker labels. No meeting
-  integration — it only records what's already playing.
-- **Transcription:** whisper.cpp via `whisper-rs`, CPU + Vulkan/CUDA. The default
-  model is **auto-fetched on first run** (zero manual setup) and a tiered model
-  manager (Fast / Balanced / Accurate) lets you switch; it works fully offline after.
-- **Record while processing:** Stop hands the recording to a **background job
-  queue**, so the recorder is instantly free for the next one. Jobs live in the
-  **History** tab; the **tray icon shows state** (recording = red, processing =
-  olive) with the panel closed; a **notification** fires when a note is ready.
-- **Output:** **Raw + Refined** two linked notes; Obsidian-friendly Markdown to a
-  save folder you choose.
-- **Refine:** pluggable — **Claude Code CLI** by default (no extra API key), or
-  Codex CLI / Ollama / Claude API / None.
-- **Frontend (v1):** Tauri v2 on **both GNOME and COSMIC** (the mockups become the
-  UI 1:1). **Theme:** dark olive (dark only for now).
-
-Remaining open questions are at the end of [`docs/PLAN.md`](docs/PLAN.md).
+[Apache-2.0](LICENSE). Your notes are plain Markdown in your own folder — they're
+yours regardless.
