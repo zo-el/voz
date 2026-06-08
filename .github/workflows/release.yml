@@ -123,10 +123,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.backend }} # separate cache per backend (different features)
+          # The key MUST pin the runner (jammy): rust-cache also caches ~/.cargo/bin
+          # and target/ C objects, keyed only by runner.os (=Linux) otherwise. A
+          # cache saved on ubuntu-24.04 would restore a cargo-tauri / whisper.cpp
+          # built against glibc 2.39 onto this 22.04 runner — reintroducing the very
+          # GLIBC_2.39 breakage we build on jammy to avoid.
+          key: ${{ matrix.backend }}-jammy
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version '^2' --locked
+        # --force so a cached ~/.cargo/bin/cargo-tauri is never reused across runners
+        # (it must be (re)built against this runner's glibc).
+        run: cargo install tauri-cli --version '^2' --locked --force
 
       - name: Build ${{ matrix.backend }} bundle(s)
         working-directory: voz-app/src-tauri
