@@ -88,11 +88,16 @@ Releases are cut by CI — you never hand-build/upload. To ship a new version:
 1. Bump `"version"` in `voz-app/src-tauri/tauri.conf.json` (and add a `CHANGELOG.md`
    entry). Optionally bump `[workspace.package] version` in `Cargo.toml` to match.
 2. Merge to `main`.
-3. `.github/workflows/release.yml` builds the `.deb` + AppImage, runs the core
-   tests, and publishes the `v<version>` GitHub Release with `SHA256SUMS`.
+3. `.github/workflows/release.yml` runs the core tests and builds **three** backend
+   variants, publishing the `v<version>` GitHub Release with `SHA256SUMS`:
+   - **CPU** — `Voz_<v>_amd64.deb` + `.AppImage` (runs everywhere; the default)
+   - **Vulkan** — `Voz_<v>_amd64-vulkan.deb` + `.AppImage` (portable GPU, CPU fallback)
+   - **CUDA** — `Voz_<v>_amd64-cuda.deb` (NVIDIA, fastest; needs the CUDA-12 runtime)
 
-Merges that don't change the version are skipped (no wasted builds). Released
-bundles are the **CPU** build (CI has no GPU); CUDA/Vulkan are local opt-in builds.
+Merges that don't change the version are skipped (no wasted builds). CI has no GPU,
+but the CUDA/Vulkan *kernels* compile on the runner (no device needed to build); the
+CUDA variant targets sm_75/86/89 (RTX 20/30/40-series) via `CUDAARCHS`. Each variant
+still runs only where its runtime is present — CUDA needs CUDA-12 installed.
 
 ## Running the app
 ```bash
@@ -101,8 +106,9 @@ DISPLAY=:1 ./voz-app/src-tauri/target/debug/voz-app        # run it
 # or, from voz-app/src-tauri/:  cargo tauri dev
 ```
 For the GPU build, add `--features cuda` (NVIDIA) or `--features vulkan`. The CPU
-build is the default. (Note: whisper.cpp's CUDA backend may require the CUDA 12
-toolkit; this machine has 11.5 — verify the GPU build before relying on it.)
+build is the default. whisper.cpp's CUDA backend needs the CUDA **12.x** toolkit; this
+machine has 12.6 at `/usr/local/cuda-12.6` (use the env exports in the GPU-build
+section above so the linker picks 12.x over any older distro `libcudart`).
 
 ## Packaging (.deb — verified)
 ```bash

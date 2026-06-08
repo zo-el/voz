@@ -53,8 +53,11 @@ tomorrow, your notes would still be sitting there as readable text.
   Code**, which sends the **transcript text** (never the audio) to Anthropic. Want
   *everything* local? Pick **Ollama** or set cleanup to **None** — both keep all text
   on your machine. This is the one place data can leave, and it's your choice.
-- **GPU isn't automatic in the released build.** The default download is **CPU** (runs
-  everywhere). GPU (CUDA/Vulkan) is fast but currently needs a from-source build.
+- **GPU is opt-in by download, not auto-switching.** The default `.deb`/AppImage is
+  **CPU** (runs everywhere). Every release *also* ships a **Vulkan** build (portable
+  GPU — any vendor, with CPU fallback) and a **CUDA** build (fastest, NVIDIA + the
+  CUDA-12 runtime only) — grab the one for your hardware. No single binary hot-swaps
+  backends; pick at install time.
 - **As good as the model + the audio.** Small models are fast but err; accurate models
   are slower and larger. Speaker labels are mic-vs-system only — it won't separate
   multiple people on the *same* stream (no diarization yet).

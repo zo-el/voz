@@ -27,6 +27,10 @@ Substantial UX + power-feature pass on top of 0.1.0 (on `develop`).
 - **CI auto-release** workflow + a slow lane (real-whisper integration);
   `docs/USER_GUIDE.md`, `docs/TROUBLESHOOTING.md`, Flatpak packaging files, and a
   COSMIC applet scaffold.
+- **Multi-backend release artifacts** — each release now ships **three** Linux
+  x86-64 variants built by CI: CPU (`.deb` + AppImage, the default), Vulkan
+  (`-vulkan`, portable GPU with CPU fallback), and CUDA (`-cuda.deb`, NVIDIA,
+  sm_75/86/89). Pick the asset that matches your hardware.
 
 ### Changed
 - Tray is now **best-effort** — a missing StatusNotifier host no longer prevents the

@@ -2,8 +2,11 @@ name: Release
 
 # Auto-build and publish a GitHub Release when `main` advances to a new version.
 # Bump the version in voz-app/src-tauri/tauri.conf.json (and CHANGELOG.md), merge
-# to main, and this cuts `v<version>` with the .deb + AppImage attached. Merges
-# that don't change the version are skipped (no wasted 15-min builds).
+# to main, and this cuts `v<version>` with three backend variants attached:
+#   • CPU    — Voz_<v>_amd64.deb + .AppImage   (runs everywhere; the default)
+#   • Vulkan — Voz_<v>_amd64-vulkan.deb + .AppImage (portable GPU, CPU fallback)
+#   • CUDA   — Voz_<v>_amd64-cuda.deb          (NVIDIA + CUDA-12 runtime only)
+# Merges that don't change the version are skipped (no wasted 30-min builds).
 on:
   push:
     branches: [main]
@@ -40,7 +43,7 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install system dependencies
+      - name: Install base build dependencies
         if: steps.check.outputs.exists == 'false'
         run: |
           sudo apt-get update
@@ -62,19 +65,75 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: cargo install tauri-cli --version '^2' --locked
 
-      - name: Build bundles (.deb + AppImage, CPU)
+      - name: Prepare dist dir
+        if: steps.check.outputs.exists == 'false'
+        run: mkdir -p dist
+
+      # ---------- CPU (default, portable) ----------
+      - name: Build CPU bundles (.deb + AppImage)
         if: steps.check.outputs.exists == 'false'
         working-directory: voz-app/src-tauri
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1 # CI runners often lack FUSE
         run: cargo tauri build --bundles deb appimage
-
-      - name: Collect artifacts + checksums
+      - name: Collect CPU artifacts
         if: steps.check.outputs.exists == 'false'
         run: |
-          mkdir -p dist
-          cp voz-app/src-tauri/target/release/bundle/deb/*.deb dist/ 2>/dev/null || true
-          cp voz-app/src-tauri/target/release/bundle/appimage/*.AppImage dist/ 2>/dev/null || true
+          cp voz-app/src-tauri/target/release/bundle/deb/*.deb dist/
+          cp voz-app/src-tauri/target/release/bundle/appimage/*.AppImage dist/
+          rm -rf voz-app/src-tauri/target/release/bundle
+
+      # ---------- Vulkan (portable GPU; runs on any GPU, falls back to CPU) ----------
+      - name: Install Vulkan SDK
+        if: steps.check.outputs.exists == 'false'
+        run: sudo apt-get install -y --no-install-recommends libvulkan-dev glslc spirv-tools
+      - name: Build Vulkan bundles (.deb + AppImage)
+        if: steps.check.outputs.exists == 'false'
+        working-directory: voz-app/src-tauri
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: cargo tauri build --features vulkan --bundles deb appimage
+      - name: Collect Vulkan artifacts (-vulkan suffix)
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          cp voz-app/src-tauri/target/release/bundle/deb/*.deb           "dist/Voz_${V}_amd64-vulkan.deb"
+          cp voz-app/src-tauri/target/release/bundle/appimage/*.AppImage "dist/Voz_${V}_amd64-vulkan.AppImage"
+          rm -rf voz-app/src-tauri/target/release/bundle
+
+      # ---------- CUDA (NVIDIA, fastest; needs CUDA-12 runtime on the user's box) ----------
+      - name: Install CUDA toolkit 12.6
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cuda-toolkit-12-6
+      - name: Build CUDA bundle (.deb)
+        if: steps.check.outputs.exists == 'false'
+        working-directory: voz-app/src-tauri
+        env:
+          CUDA_PATH: /usr/local/cuda-12.6
+          CUDACXX: /usr/local/cuda-12.6/bin/nvcc
+          # Build kernels for the runner (which has no GPU to auto-detect): cover
+          # Turing/Ampere(consumer)/Ada — RTX 20xx/30xx/40xx (the 3080 is sm_86).
+          CUDAARCHS: "75;86;89"
+          # Bake the CUDA-12 lib path into RUNPATH so the installed binary finds
+          # libcudart.so.12 without env vars (the user still needs CUDA-12 present).
+          RUSTFLAGS: "-L native=/usr/local/cuda-12.6/lib64 -C link-arg=-Wl,-rpath,/usr/local/cuda-12.6/lib64"
+        run: |
+          export PATH="$CUDA_PATH/bin:$PATH"
+          cargo tauri build --features cuda --bundles deb
+      - name: Collect CUDA artifact (-cuda suffix)
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          cp voz-app/src-tauri/target/release/bundle/deb/*.deb "dist/Voz_${V}_amd64-cuda.deb"
+          rm -rf voz-app/src-tauri/target/release/bundle
+
+      - name: Checksums
+        if: steps.check.outputs.exists == 'false'
+        run: |
           ( cd dist && sha256sum * > SHA256SUMS )
           ls -la dist
 
@@ -88,5 +147,6 @@ jobs:
             --notes-file CHANGELOG.md \
             --target "${{ github.sha }}"
 
-# Note: CI runners have no GPU, so released bundles are the CPU build (runs
-# everywhere). The CUDA/Vulkan variants are opt-in local builds (--features cuda).
+# CPU runs everywhere; Vulkan accelerates on any GPU (CPU fallback) and is the
+# portable GPU pick; CUDA is fastest on NVIDIA but only runs where the CUDA-12
+# runtime is installed. Pick the asset that matches your hardware.
