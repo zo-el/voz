@@ -1,12 +1,15 @@
 name: Release
 
-# Auto-build and publish a GitHub Release when `main` advances to a new version.
-# Bump the version in voz-app/src-tauri/tauri.conf.json (and CHANGELOG.md), merge
-# to main, and this cuts `v<version>` with three backend variants attached:
+# Publish a GitHub Release when `main` advances to a new version. Bump the version
+# in voz-app/src-tauri/tauri.conf.json (+ CHANGELOG.md), merge to main, and this cuts
+# `v<version>` with three backend variants — built in PARALLEL — attached:
 #   • CPU    — Voz_<v>_amd64.deb + .AppImage   (runs everywhere; the default)
 #   • Vulkan — Voz_<v>_amd64-vulkan.deb + .AppImage (portable GPU, CPU fallback)
 #   • CUDA   — Voz_<v>_amd64-cuda.deb          (NVIDIA + CUDA-12 runtime only)
-# Merges that don't change the version are skipped (no wasted 30-min builds).
+#
+# Pipeline: gate (version + already-released check) -> test (core gate) ->
+#           build (matrix: cpu|vulkan|cuda, concurrent) -> release (gather + publish).
+# Merges that don't change the version are skipped (no wasted builds).
 on:
   push:
     branches: [main]
@@ -16,21 +19,22 @@ permissions:
   contents: write # create tags + releases
 
 jobs:
-  release:
+  # ---------- 1. Resolve the version and skip if it's already published ----------
+  gate:
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      exists: ${{ steps.check.outputs.exists }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Read app version
         id: ver
         run: |
           V=$(grep -m1 '"version"' voz-app/src-tauri/tauri.conf.json \
               | sed -E 's/.*"version" *: *"([^"]+)".*/\1/')
-          echo "version=$V"      >> "$GITHUB_OUTPUT"
-          echo "tag=v$V"         >> "$GITHUB_OUTPUT"
-
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V"    >> "$GITHUB_OUTPUT"
       - name: Skip if this version is already released
         id: check
         env:
@@ -43,107 +47,138 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # ---------- 2. Gate the release on the core test suite ----------
+  test:
+    needs: gate
+    if: needs.gate.outputs.exists == 'false'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # `engine` = audio(hound) + refine + history(bundled SQLite) — only a C
+      # compiler is needed (no whisper/cmake, no system audio libs).
+      - name: Install build essentials
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p voz-core --features engine
+
+  # ---------- 3. Build the three backends concurrently ----------
+  build:
+    needs: [gate, test]
+    if: needs.gate.outputs.exists == 'false'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false # surface all backend failures at once, not just the first
+      matrix:
+        include:
+          - backend: cpu
+            features: ""
+            bundles: deb appimage
+          - backend: vulkan
+            features: --features vulkan
+            bundles: deb appimage
+          - backend: cuda
+            features: --features cuda
+            bundles: deb
+    name: build (${{ matrix.backend }})
+    steps:
+      - uses: actions/checkout@v4
+
+      # Base deps for every Tauri .deb/AppImage bundle. libayatana-appindicator3-dev
+      # is REQUIRED because the app has a system tray — without it the bundler panics
+      # with "Can't detect any appindicator library".
       - name: Install base build dependencies
-        if: steps.check.outputs.exists == 'false'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libasound2-dev libpipewire-0.3-dev \
             libwebkit2gtk-4.1-dev librsvg2-dev \
+            libayatana-appindicator3-dev \
             build-essential cmake clang
 
-      - uses: dtolnay/rust-toolchain@stable
-        if: steps.check.outputs.exists == 'false'
-      - uses: Swatinem/rust-cache@v2
-        if: steps.check.outputs.exists == 'false'
-
-      - name: Test the core (gate the release)
-        if: steps.check.outputs.exists == 'false'
-        run: cargo test -p voz-core --features engine
-
-      - name: Install Tauri CLI
-        if: steps.check.outputs.exists == 'false'
-        run: cargo install tauri-cli --version '^2' --locked
-
-      - name: Prepare dist dir
-        if: steps.check.outputs.exists == 'false'
-        run: mkdir -p dist
-
-      # ---------- CPU (default, portable) ----------
-      - name: Build CPU bundles (.deb + AppImage)
-        if: steps.check.outputs.exists == 'false'
-        working-directory: voz-app/src-tauri
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: 1 # CI runners often lack FUSE
-        run: cargo tauri build --bundles deb appimage
-      - name: Collect CPU artifacts
-        if: steps.check.outputs.exists == 'false'
-        run: |
-          cp voz-app/src-tauri/target/release/bundle/deb/*.deb dist/
-          cp voz-app/src-tauri/target/release/bundle/appimage/*.AppImage dist/
-          rm -rf voz-app/src-tauri/target/release/bundle
-
-      # ---------- Vulkan (portable GPU; runs on any GPU, falls back to CPU) ----------
       - name: Install Vulkan SDK
-        if: steps.check.outputs.exists == 'false'
+        if: matrix.backend == 'vulkan'
         run: sudo apt-get install -y --no-install-recommends libvulkan-dev glslc spirv-tools
-      - name: Build Vulkan bundles (.deb + AppImage)
-        if: steps.check.outputs.exists == 'false'
-        working-directory: voz-app/src-tauri
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: 1
-        run: cargo tauri build --features vulkan --bundles deb appimage
-      - name: Collect Vulkan artifacts (-vulkan suffix)
-        if: steps.check.outputs.exists == 'false'
-        run: |
-          V=${{ steps.ver.outputs.version }}
-          cp voz-app/src-tauri/target/release/bundle/deb/*.deb           "dist/Voz_${V}_amd64-vulkan.deb"
-          cp voz-app/src-tauri/target/release/bundle/appimage/*.AppImage "dist/Voz_${V}_amd64-vulkan.AppImage"
-          rm -rf voz-app/src-tauri/target/release/bundle
 
-      # ---------- CUDA (NVIDIA, fastest; needs CUDA-12 runtime on the user's box) ----------
       - name: Install CUDA toolkit 12.6
-        if: steps.check.outputs.exists == 'false'
+        if: matrix.backend == 'cuda'
         run: |
           wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cuda-toolkit-12-6
-      - name: Build CUDA bundle (.deb)
-        if: steps.check.outputs.exists == 'false'
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.backend }} # separate cache per backend (different features)
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version '^2' --locked
+
+      - name: Build ${{ matrix.backend }} bundle(s)
         working-directory: voz-app/src-tauri
         env:
-          CUDA_PATH: /usr/local/cuda-12.6
-          CUDACXX: /usr/local/cuda-12.6/bin/nvcc
-          # Build kernels for the runner (which has no GPU to auto-detect): cover
-          # Turing/Ampere(consumer)/Ada — RTX 20xx/30xx/40xx (the 3080 is sm_86).
-          CUDAARCHS: "75;86;89"
-          # Bake the CUDA-12 lib path into RUNPATH so the installed binary finds
-          # libcudart.so.12 without env vars (the user still needs CUDA-12 present).
-          RUSTFLAGS: "-L native=/usr/local/cuda-12.6/lib64 -C link-arg=-Wl,-rpath,/usr/local/cuda-12.6/lib64"
+          APPIMAGE_EXTRACT_AND_RUN: 1 # CI runners often lack FUSE
         run: |
-          export PATH="$CUDA_PATH/bin:$PATH"
-          cargo tauri build --features cuda --bundles deb
-      - name: Collect CUDA artifact (-cuda suffix)
-        if: steps.check.outputs.exists == 'false'
-        run: |
-          V=${{ steps.ver.outputs.version }}
-          cp voz-app/src-tauri/target/release/bundle/deb/*.deb "dist/Voz_${V}_amd64-cuda.deb"
-          rm -rf voz-app/src-tauri/target/release/bundle
+          if [ "${{ matrix.backend }}" = "cuda" ]; then
+            # No GPU on the runner to auto-detect, so pin the kernel archs
+            # (Turing/Ampere-consumer/Ada = RTX 20/30/40, the 3080 is sm_86) and
+            # bake the CUDA-12 lib path into RUNPATH for the installed binary.
+            export CUDA_PATH=/usr/local/cuda-12.6
+            export PATH="$CUDA_PATH/bin:$PATH"
+            export CUDACXX="$CUDA_PATH/bin/nvcc"
+            export CUDAARCHS="75;86;89"
+            export RUSTFLAGS="-L native=$CUDA_PATH/lib64 -C link-arg=-Wl,-rpath,$CUDA_PATH/lib64"
+          fi
+          cargo tauri build ${{ matrix.features }} --bundles ${{ matrix.bundles }}
 
+      - name: Stage artifacts (${{ matrix.backend }})
+        run: |
+          mkdir -p dist
+          V=${{ needs.gate.outputs.version }}
+          B=${{ matrix.backend }}
+          D=voz-app/src-tauri/target/release/bundle
+          if [ "$B" = "cpu" ]; then
+            cp "$D"/deb/*.deb dist/
+            cp "$D"/appimage/*.AppImage dist/
+          else
+            cp "$D"/deb/*.deb "dist/Voz_${V}_amd64-${B}.deb"
+            if [ -d "$D/appimage" ]; then
+              cp "$D"/appimage/*.AppImage "dist/Voz_${V}_amd64-${B}.AppImage"
+            fi
+          fi
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.backend }}
+          path: dist/
+          if-no-files-found: error
+
+  # ---------- 4. Gather every variant and publish the release ----------
+  release:
+    needs: [gate, build]
+    if: needs.gate.outputs.exists == 'false'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4 # for CHANGELOG.md (release notes)
+      - name: Download all backend bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: bundles-*
+          merge-multiple: true
       - name: Checksums
-        if: steps.check.outputs.exists == 'false'
         run: |
           ( cd dist && sha256sum * > SHA256SUMS )
           ls -la dist
-
       - name: Create the GitHub Release
-        if: steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.ver.outputs.tag }}" dist/* \
-            --title "Voz ${{ steps.ver.outputs.tag }}" \
+          gh release create "${{ needs.gate.outputs.tag }}" dist/* \
+            --title "Voz ${{ needs.gate.outputs.tag }}" \
             --notes-file CHANGELOG.md \
             --target "${{ github.sha }}"
 
