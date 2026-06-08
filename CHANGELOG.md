@@ -5,11 +5,12 @@ All notable changes to Voz. Format: [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
-## [0.3.0] — 2026-06-08
+## [0.4.0] — 2026-06-08
 
-The first broadly-compatible release of the substantial UX + power-feature pass on
-top of 0.1.0. (The 0.2.x builds were superseded before a working release shipped —
-0.2.0's binaries required glibc 2.38+ and wouldn't start on 22.04.)
+The first complete, broadly-compatible release on top of 0.1.0 — the full feature
+pass below plus the packaging fixes that make the binaries actually run across
+machines. (The 0.2.x / 0.3.x builds were superseded before a working release
+shipped: glibc and CPU-instruction mismatches kept them from starting.)
 
 ### Added
 - **First-run onboarding** — welcome → choose save folder → pick AI-cleanup backend.
@@ -41,6 +42,10 @@ top of 0.1.0. (The 0.2.x builds were superseded before a working release shipped
   app from launching (window + hotkey remain usable).
 
 ### Fixed
+- **Released binaries run on CPUs without AVX-512.** ggml defaults to `-march=native`,
+  which baked the build runner's AVX-512 into the binary → `SIGILL` on consumer CPUs
+  that lack it (e.g. Alder Lake i9-12900K). CI now compiles a portable AVX2/FMA/F16C
+  baseline (`GGML_NATIVE=OFF`), which every x86-64 CPU since ~2013 has.
 - **Release packaging runs across distros.** Bundles are built on Ubuntu 22.04
   (glibc 2.35) so they run on Pop!_OS / Ubuntu 22.04 and everything newer — a 24.04
   build needed glibc 2.38+ and wouldn't start. CI also installs the appindicator dev

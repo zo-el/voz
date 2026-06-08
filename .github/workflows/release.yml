@@ -128,7 +128,12 @@ jobs:
           # cache saved on ubuntu-24.04 would restore a cargo-tauri / whisper.cpp
           # built against glibc 2.39 onto this 22.04 runner — reintroducing the very
           # GLIBC_2.39 breakage we build on jammy to avoid.
-          key: ${{ matrix.backend }}-jammy
+          #
+          # The trailing tag (avx2) pins the CPU build flags. whisper-rs-sys does NOT
+          # declare rerun-if-env-changed for GGML_*, so a flag change alone won't
+          # rebuild it — a stale cache would keep the old -march=native object.
+          # BUMP THIS TAG whenever the GGML_* build env below changes.
+          key: ${{ matrix.backend }}-jammy-avx2
 
       - name: Install Tauri CLI
         # --force so a cached ~/.cargo/bin/cargo-tauri is never reused across runners
@@ -139,6 +144,17 @@ jobs:
         working-directory: voz-app/src-tauri
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1 # CI runners often lack FUSE
+          # Portable CPU baseline — NOT -march=native. ggml defaults GGML_NATIVE=ON,
+          # which bakes in the *build runner's* CPU features (often AVX-512); on a CPU
+          # without them (e.g. Alder Lake i9-12900K) that's an illegal instruction
+          # (SIGILL). Target AVX2/FMA/F16C, which every x86-64 CPU since ~2013 has.
+          # whisper-rs-sys forwards GGML_* env vars as CMake defines (its build.rs).
+          GGML_NATIVE: "OFF"
+          GGML_AVX: "ON"
+          GGML_AVX2: "ON"
+          GGML_FMA: "ON"
+          GGML_F16C: "ON"
+          GGML_AVX512: "OFF"
         run: |
           if [ "${{ matrix.backend }}" = "cuda" ]; then
             # No GPU on the runner to auto-detect, so pin the kernel archs
