@@ -1,18 +1,14 @@
 {
   "name": "transcriptor",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "private": true,
+  "description": "Design-mockup rendering for Voz (Playwright → design/out/*.png). The app itself is Rust/Tauri; see the Cargo workspace.",
+  "license": "Apache-2.0",
   "type": "module",
+  "scripts": {
+    "render": "node design/render.mjs",
+    "render:icons": "node design/icons/render-icons.mjs"
+  },
   "devDependencies": {
     "playwright": "^1.60.0"
   }

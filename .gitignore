@@ -6,6 +6,11 @@ node_modules/
 **/target/
 **/*.rs.bk
 
+# build artifacts / stray packages (the real ones live under target/.../bundle)
+*.deb
+*.AppImage
+*.log
+
 # tauri generated
 voz-app/src-tauri/gen/schemas/
 
