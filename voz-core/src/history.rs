@@ -189,10 +189,17 @@ impl History {
     /// # Errors
     /// Returns [`crate::Error::Storage`] on failure.
     pub fn search(&self, term: &str, limit: u32) -> crate::Result<Vec<HistoryRecord>> {
-        let like = format!("%{term}%");
+        // Treat the term as a literal substring: escape the LIKE metacharacters
+        // (`\` first, then `%` and `_`) so e.g. "cost_analysis" or "50%" match
+        // literally instead of acting as wildcards. Paired with ESCAPE '\' below.
+        let escaped = term
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        let like = format!("%{escaped}%");
         self.query(
             "SELECT id,created,title,source,voices,words,duration_secs,refine_backend,lossless_ok,refined_path,raw_path
-             FROM notes WHERE (title LIKE ?1 OR body LIKE ?1) COLLATE NOCASE
+             FROM notes WHERE (title LIKE ?1 ESCAPE '\\' OR body LIKE ?1 ESCAPE '\\') COLLATE NOCASE
              ORDER BY created DESC LIMIT ?2",
             rusqlite::params![like, limit],
         )
@@ -270,6 +277,8 @@ mod tests {
             refine_backend: "Claude Code".into(),
             lossless_ok: true,
             words,
+            title: "Planning sync".into(),
+            kind: "Meeting".into(),
         }
     }
 
@@ -311,6 +320,24 @@ mod tests {
         assert_eq!(h.search("staging database", 10).unwrap().len(), 1);
 
         assert_eq!(h.search("nothing", 10).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn search_treats_like_metachars_literally() {
+        let h = History::open_in_memory().unwrap();
+        h.insert(
+            "cost analysis",
+            &meta("2026-06-05T10:00:00", 10),
+            "/n/c.md",
+            "/n/raw/c.md",
+            "quarterly numbers",
+        )
+        .unwrap();
+        // '_' and '%' are escaped → they match literally, not as wildcards.
+        assert!(h.search("cost_analysis", 10).unwrap().is_empty());
+        assert!(h.search("%", 10).unwrap().is_empty());
+        // The literal phrase still matches.
+        assert_eq!(h.search("cost analysis", 10).unwrap().len(), 1);
     }
 
     #[test]

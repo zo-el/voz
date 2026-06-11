@@ -34,6 +34,65 @@ pub fn build_input(raw: &Transcript, style: &RefineStyle) -> String {
     )
 }
 
+/// The note "kind" label for the header (`Meeting` / `Memo` / `Note`), derived
+/// from the chosen style. For `Adaptive` the label is inferred from the refined
+/// note's shape (a meeting produces Decisions / Action items). Pass the refined
+/// body the backend actually produced; an empty body falls back to `Note`.
+#[must_use]
+pub fn resolve_kind(style: &RefineStyle, refined_body: &str) -> String {
+    match style {
+        RefineStyle::Meeting => "Meeting".to_string(),
+        RefineStyle::Memo => "Memo".to_string(),
+        RefineStyle::Custom(_) => "Note".to_string(),
+        RefineStyle::Adaptive => {
+            let l = refined_body.to_lowercase();
+            if l.contains("action item") || l.contains("decision") {
+                "Meeting".to_string()
+            } else {
+                "Note".to_string()
+            }
+        }
+    }
+}
+
+/// How a backend's refined output resolves into note-naming inputs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefinedNote {
+    /// Refiner-supplied title, or `fallback_title` when none was produced.
+    pub title: String,
+    /// Note kind label (`Meeting` / `Memo` / `Note`).
+    pub kind: String,
+    /// The refined body with its leading `Title:` line stripped.
+    pub body: String,
+    /// Whether the backend produced a usable (non-empty) body.
+    pub present: bool,
+}
+
+/// Interpret a backend's refined output for note naming: lift the `Title:` line
+/// (falling back to `fallback_title`), strip it from the body, and resolve the
+/// kind. An empty body yields `present = false`, `kind = "Note"`, and the
+/// fallback title. Shared by the engine and its pure pipeline mirror so the two
+/// can't drift.
+#[must_use]
+pub fn interpret_refined(refined_body: &str, style: &RefineStyle, fallback_title: &str) -> RefinedNote {
+    let (title_line, body) = crate::store::parse_title_line(refined_body);
+    let present = !body.trim().is_empty();
+    let title = title_line
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| fallback_title.to_string());
+    let kind = if present {
+        resolve_kind(style, &body)
+    } else {
+        "Note".to_string()
+    };
+    RefinedNote {
+        title,
+        kind,
+        body,
+        present,
+    }
+}
+
 /// Result of the lossless guard.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LosslessReport {
@@ -158,6 +217,50 @@ mod tests {
     #[test]
     fn lossless_trips_on_empty() {
         assert!(!lossless_check("anything", "   ").ok);
+    }
+
+    #[test]
+    fn resolve_kind_from_style_and_shape() {
+        assert_eq!(resolve_kind(&RefineStyle::Meeting, ""), "Meeting");
+        assert_eq!(resolve_kind(&RefineStyle::Memo, "## Decisions"), "Memo");
+        assert_eq!(resolve_kind(&RefineStyle::Custom("x".into()), "Decision"), "Note");
+        // Adaptive infers from the produced shape.
+        assert_eq!(
+            resolve_kind(&RefineStyle::Adaptive, "## Summary\n## Action items\n- ship"),
+            "Meeting"
+        );
+        assert_eq!(
+            resolve_kind(&RefineStyle::Adaptive, "Just some bullet notes."),
+            "Note"
+        );
+    }
+
+    #[test]
+    fn prompt_requests_a_title_line() {
+        assert!(RefineStyle::Adaptive.prompt().contains("Title:"));
+    }
+
+    #[test]
+    fn interpret_refined_lifts_title_resolves_kind_and_falls_back() {
+        // Title lifted, body stripped, kind from the Meeting-shaped body.
+        let r = interpret_refined(
+            "Title: Q3 Sync\n\n## Action items\n- ship",
+            &RefineStyle::Adaptive,
+            "fallback",
+        );
+        assert_eq!(r.title, "Q3 Sync");
+        assert_eq!(r.kind, "Meeting");
+        assert!(r.present);
+        assert_eq!(r.body, "## Action items\n- ship");
+        // Empty output → fallback title, Note kind, not present.
+        let empty = interpret_refined("", &RefineStyle::Meeting, "fallback");
+        assert_eq!(empty.title, "fallback");
+        assert_eq!(empty.kind, "Note");
+        assert!(!empty.present);
+        // No title line → fallback title, body kept.
+        let no_title = interpret_refined("just some notes", &RefineStyle::Memo, "fallback");
+        assert_eq!(no_title.title, "fallback");
+        assert_eq!(no_title.kind, "Memo");
     }
 
     #[test]

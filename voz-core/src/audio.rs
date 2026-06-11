@@ -71,7 +71,10 @@ pub fn monitor_name_for_sink(sink: &str) -> String {
 /// is a fallback for native-rate buffers.
 #[must_use]
 pub fn resample_mono(input: &[f32], in_rate: u32, out_rate: u32) -> Vec<f32> {
-    if in_rate == out_rate || input.is_empty() || out_rate == 0 {
+    // `in_rate == 0` guards a malformed/hostile WAV header: without it the
+    // integer-ratio branch below computes `chunks(in_rate / out_rate)` = `chunks(0)`,
+    // which panics.
+    if in_rate == out_rate || input.is_empty() || in_rate == 0 || out_rate == 0 {
         return input.to_vec();
     }
     if in_rate % out_rate == 0 {
@@ -156,6 +159,13 @@ mod tests {
     fn resample_passthrough_and_empty() {
         assert_eq!(resample_mono(&[0.1, 0.2], 16_000, 16_000), vec![0.1, 0.2]);
         assert_eq!(resample_mono(&[], 48_000, 16_000), Vec::<f32>::new());
+    }
+
+    #[test]
+    fn resample_zero_rate_does_not_panic() {
+        // A malformed WAV reporting sample_rate 0 must not panic (chunks(0)).
+        assert_eq!(resample_mono(&[0.1, 0.2], 0, 16_000), vec![0.1, 0.2]);
+        assert_eq!(resample_mono(&[0.1, 0.2], 16_000, 0), vec![0.1, 0.2]);
     }
 
     #[test]

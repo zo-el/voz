@@ -57,23 +57,30 @@ impl Job {
     }
 }
 
-/// In-memory queue + scheduler. Persistence (crash recovery) is layered on top in
-/// a later milestone; the transition rules live here and are unit-tested.
+/// In-memory record of jobs and their lifecycle (for the History tab + tray).
+/// Concurrency is bounded by the engine's worker slots, not here; the transition
+/// rules live here and are unit-tested.
 #[derive(Debug)]
 pub struct JobQueue {
     jobs: Vec<Job>,
     next_id: u64,
-    concurrency: usize,
+}
+
+impl Default for JobQueue {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl JobQueue {
-    /// Create a queue allowing `concurrency` active jobs at once (min 1).
+    /// Create an empty queue. How many jobs run *at once* is bounded by the
+    /// engine's worker slots (see `engine::Slots`); this queue is pure bookkeeping
+    /// for the History tab and tray badge.
     #[must_use]
-    pub fn new(concurrency: usize) -> Self {
+    pub fn new() -> Self {
         JobQueue {
             jobs: Vec::new(),
             next_id: 1,
-            concurrency: concurrency.max(1),
         }
     }
 
@@ -93,18 +100,6 @@ impl JobQueue {
     #[must_use]
     pub fn active_count(&self) -> usize {
         self.jobs.iter().filter(|j| j.state.is_active()).count()
-    }
-
-    /// The next queued job that may start, respecting the concurrency cap.
-    #[must_use]
-    pub fn next_runnable(&self) -> Option<JobId> {
-        if self.active_count() >= self.concurrency {
-            return None;
-        }
-        self.jobs
-            .iter()
-            .find(|j| j.state == JobState::Queued)
-            .map(|j| j.id)
     }
 
     /// Update a job's state. Returns false if the id is unknown.
@@ -145,7 +140,7 @@ mod tests {
 
     #[test]
     fn enqueue_assigns_increasing_ids() {
-        let mut q = JobQueue::new(2);
+        let mut q = JobQueue::new();
         let a = q.enqueue(Source::Both);
         let b = q.enqueue(Source::Mic);
         assert_eq!(a, JobId(1));
@@ -154,22 +149,20 @@ mod tests {
     }
 
     #[test]
-    fn concurrency_cap_limits_runnable() {
-        let mut q = JobQueue::new(1);
+    fn active_count_tracks_in_flight_jobs() {
+        let mut q = JobQueue::new();
         let a = q.enqueue(Source::Both);
         let _b = q.enqueue(Source::Both);
-        assert_eq!(q.next_runnable(), Some(a));
+        assert_eq!(q.active_count(), 0); // both Queued
         q.set_state(a, JobState::Transcribing);
-        // One slot, one active -> nothing else may start yet.
-        assert_eq!(q.next_runnable(), None);
+        assert_eq!(q.active_count(), 1);
         q.set_state(a, JobState::Done);
-        // Slot freed -> the second job becomes runnable.
-        assert_eq!(q.next_runnable(), Some(JobId(2)));
+        assert_eq!(q.active_count(), 0);
     }
 
     #[test]
     fn lifecycle_and_raw_saved_flag() {
-        let mut q = JobQueue::new(2);
+        let mut q = JobQueue::new();
         let id = q.enqueue(Source::Both);
         assert!(q.set_state(id, JobState::Transcribing));
         assert!(q.mark_raw_saved(id));
@@ -182,7 +175,7 @@ mod tests {
 
     #[test]
     fn dismiss_removes_only_terminal() {
-        let mut q = JobQueue::new(2);
+        let mut q = JobQueue::new();
         let id = q.enqueue(Source::Both);
         q.dismiss(id); // still queued -> not removed
         assert_eq!(q.jobs().len(), 1);
@@ -193,7 +186,7 @@ mod tests {
 
     #[test]
     fn unknown_id_is_reported() {
-        let mut q = JobQueue::new(1);
+        let mut q = JobQueue::new();
         assert!(!q.set_state(JobId(99), JobState::Done));
     }
 }

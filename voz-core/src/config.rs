@@ -175,8 +175,14 @@ impl Settings {
         match std::fs::read_to_string(&path) {
             Ok(s) => match Self::from_toml(&s) {
                 Ok(cfg) => cfg,
-                Err(_) => {
-                    let _ = std::fs::rename(&path, path.with_extension("toml.bak"));
+                Err(e) => {
+                    let bak = path.with_extension("toml.bak");
+                    log::warn!(
+                        "config at {} could not be parsed ({e}); backed it up to {} and reset to defaults",
+                        path.display(),
+                        bak.display()
+                    );
+                    let _ = std::fs::rename(&path, &bak);
                     Self::default()
                 }
             },

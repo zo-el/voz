@@ -7,8 +7,9 @@ const listen = (T.event && T.event.listen) || (async () => () => {});
 
 const $ = (id) => document.getElementById(id);
 let source = 'both';
-let recording = false;
-let timerStart = 0, timerTimer = null, levelTimer = null;
+let recording = false, paused = false;
+let timerStart = 0, elapsedBase = 0, timerTimer = null, levelTimer = null;
+let waveAmp = 0; // smoothed 0..1 wave amplitude, eased toward the live input level
 
 // ---- waveform ----
 const wave = $('wave');
@@ -26,13 +27,23 @@ function hideTransient() {
 }
 hideTransient();
 
-function flatWave() { wave.classList.add('idle'); bars.forEach(b => b.style.height = '6px'); }
+function setBars(px) { bars.forEach(b => b.style.height = px + 'px'); }
+function flatWave() { wave.classList.remove('paused'); wave.classList.add('idle'); waveAmp = 0; setBars(6); }
+function pausedWave() { wave.classList.remove('idle'); wave.classList.add('paused'); waveAmp = 0; setBars(6); }
+// Drive the bars from the live input level. RMS is small for speech, so apply a
+// sqrt curve + gain: true silence stays flat (clearly "nothing"), normal speech
+// is lively, loud input fills the meter. Ease toward the target so it rises/falls
+// smoothly, and scale the per-bar jitter by the amplitude so a quiet/idle signal
+// doesn't wiggle.
 function animateWave(level) {
-  wave.classList.remove('idle');
+  wave.classList.remove('idle', 'paused');
+  const target = Math.min(1, Math.sqrt(Math.max(0, level)) * 2.2);
+  waveAmp += (target - waveAmp) * 0.3;
+  const now = Date.now();
   bars.forEach((b, i) => {
-    const base = 6 + level * 70;
-    const jitter = Math.sin(Date.now() / 90 + i) * 0.5 + 0.5;
-    b.style.height = Math.max(4, Math.min(44, base * (0.4 + jitter))) + 'px';
+    const jitter = Math.sin(now / 120 + i * 0.7) * 0.5 + 0.5; // 0..1
+    const h = 4 + waveAmp * (10 + jitter * 30);
+    b.style.height = Math.max(3, Math.min(44, h)) + 'px';
   });
 }
 flatWave();
@@ -59,41 +70,95 @@ function friendlyError(m) {
 
 // ---- timer ----
 function fmt(s) { const m = Math.floor(s / 60), ss = s % 60; return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; }
+function renderTimer() { $('timer').textContent = fmt(Math.floor(elapsedBase + (Date.now() - timerStart) / 1000)); }
 function startTimer() {
-  timerStart = Date.now();
+  clearInterval(timerTimer); // never stack intervals across re-entry
+  elapsedBase = 0; timerStart = Date.now();
   $('timer').classList.remove('idle');
-  timerTimer = setInterval(() => $('timer').textContent = fmt(Math.floor((Date.now() - timerStart) / 1000)), 500);
+  renderTimer();
+  timerTimer = setInterval(renderTimer, 500);
 }
-function stopTimer() { clearInterval(timerTimer); $('timer').textContent = '00:00'; $('timer').classList.add('idle'); }
+function pauseTimer() {
+  clearInterval(timerTimer);
+  elapsedBase += (Date.now() - timerStart) / 1000; // bank the active span; display freezes
+  $('timer').textContent = fmt(Math.floor(elapsedBase));
+}
+function resumeTimer() {
+  clearInterval(timerTimer);
+  timerStart = Date.now();
+  renderTimer();
+  timerTimer = setInterval(renderTimer, 500);
+}
+function stopTimer() { clearInterval(timerTimer); elapsedBase = 0; $('timer').textContent = '00:00'; $('timer').classList.add('idle'); }
 
 // ---- record controls ----
 const recIcon = '<svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>';
 const stopIcon = '<span class="stop"></span>';
+const pauseIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>';
+const playIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+function setPauseButton(isPaused) {
+  const b = $('btn-pause');
+  b.innerHTML = isPaused ? playIcon : pauseIcon;
+  b.title = isPaused ? 'Resume' : 'Pause';
+}
+
+// The level meter polls the live input and drives the waveform. Kept as its own
+// lifecycle (not stacked) so pause can stop it and resume can restart it without
+// orphaning intervals — a leaked one would animate the wave forever and peg a core.
+function startLevelMeter() {
+  clearInterval(levelTimer);
+  levelTimer = setInterval(async () => {
+    try { const [m, s] = await invoke('get_level'); animateWave(Math.max(m, s)); } catch (e) {}
+  }, 90);
+}
+function stopLevelMeter() { clearInterval(levelTimer); }
 
 function enterRecording() {
+  // Idempotent: `start` emits RecState(Recording); the guard stops a duplicate
+  // start from stacking timers. Resume is handled separately (resumeRecording).
+  if (recording) return;
   recording = true;
+  paused = false;
   setPill('Recording', 'live');
   $('recbtn').classList.add('recording');
   $('recbtn').innerHTML = stopIcon;
+  setPauseButton(false);
   $('btn-pause').style.visibility = 'visible';
   $('btn-cancel').style.visibility = 'visible';
   $('hint').innerHTML = '<b>Stop</b> hands off to the background — you stay free to record';
   $('result').style.display = 'none';
   startTimer();
-  levelTimer = setInterval(async () => {
-    try { const [m, s] = await invoke('get_level'); animateWave(Math.max(m, s)); } catch (e) {}
-  }, 90);
+  startLevelMeter();
+}
+function pauseRecording() {
+  paused = true;
+  pauseTimer();       // freeze elapsed time (backend excludes the paused span too)
+  stopLevelMeter();   // freeze the waveform — no live input is being captured
+  pausedWave();
+  setPill('Paused', 'paused');
+  setPauseButton(true);
+  $('hint').innerHTML = '<b>Paused</b> — tap ▶ to resume, or Stop to finish';
+}
+function resumeRecording() {
+  paused = false;
+  resumeTimer();
+  setPill('Recording', 'live');
+  setPauseButton(false);
+  $('hint').innerHTML = '<b>Stop</b> hands off to the background — you stay free to record';
+  startLevelMeter();
 }
 function leaveRecording() {
   recording = false;
+  paused = false;
   setPill('Ready');
   $('recbtn').classList.remove('recording');
   $('recbtn').innerHTML = recIcon;
   $('btn-pause').style.visibility = 'hidden';
   $('btn-cancel').style.visibility = 'hidden';
+  setPauseButton(false);
   $('hint').textContent = 'Click the mic, or the tray icon, to record';
   stopTimer();
-  clearInterval(levelTimer);
+  stopLevelMeter();
   flatWave();
   const pt = $('partial'); pt.style.display = 'none'; pt.textContent = '';
 }
@@ -116,7 +181,7 @@ $('recbtn').onclick = async () => {
   }
 };
 $('btn-cancel').onclick = () => invoke('cancel').catch(() => {});
-$('btn-pause').onclick = () => invoke('pause').catch(() => {});
+$('btn-pause').onclick = () => invoke(paused ? 'resume' : 'pause').catch(() => {});
 
 // ---- source pill ----
 $('srcpill').querySelectorAll('button').forEach(btn => {
@@ -266,6 +331,8 @@ document.querySelectorAll('#set-source-seg span').forEach(sp => sp.onclick = asy
 });
 document.querySelectorAll('#set-accel-seg span').forEach(sp => sp.onclick = async () => {
   if (!currentSettings) return; currentSettings.transcription.accel = sp.dataset.a; await persistSettings();
+  // Reflect what's actually in effect, so picking e.g. CUDA on a CPU build is honest.
+  invoke('get_acceleration').then(d => { if (d) $('set-accel-now').textContent = 'Now: ' + d; }).catch(() => {});
 });
 const DEFAULT_CUSTOM_PROMPT = 'Summarize the transcript as clear bullet points, keeping every name, number, and decision.';
 function reflectStyle(style) {
@@ -307,13 +374,17 @@ function accelFromEvent(e) {
   let key = e.key === ' ' ? 'Space' : (e.key.length === 1 ? e.key.toUpperCase() : e.key);
   return mods.concat(key).join('+');
 }
+let capturingHotkey = false;
 $('set-hotkey-btn').onclick = () => {
+  if (capturingHotkey) return; // a second click while waiting would stack key listeners
+  capturingHotkey = true;
   const el = $('set-hotkey-keys'); const orig = el.textContent;
   el.textContent = 'Press keys…';
   const onKey = async (e) => {
     if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // modifier alone — keep waiting
     e.preventDefault();
     document.removeEventListener('keydown', onKey, true);
+    capturingHotkey = false;
     const accel = accelFromEvent(e);
     if (accel && currentSettings) {
       currentSettings.general.hotkey = accel; el.textContent = accel; await persistSettings();
@@ -389,7 +460,7 @@ async function loadModels() {
 let currentNote = null, noteTab = 'refined';
 async function openNote(refinedPath) {
   try { currentNote = await invoke('read_note', { refinedPath }); currentNote.refined_path = refinedPath; }
-  catch (e) { return; }
+  catch (e) { toast('Couldn’t open the note'); return; }
   $('note-title').textContent = currentNote.title || 'Note';
   $('note-sub').textContent = `${currentNote.voices || ''}${currentNote.lossless_ok === false ? ' · review: detail may differ' : ''}`;
   noteTab = 'refined'; renderNote();
@@ -405,9 +476,11 @@ $('note-back').onclick = () => showView('history');
 $('models-back').onclick = () => showView('settings');
 $('note-copy').onclick = () => {
   const body = noteTab === 'refined' ? currentNote?.refined : currentNote?.raw;
-  if (body) navigator.clipboard.writeText(body).catch(() => {});
+  if (body) navigator.clipboard.writeText(body).then(() => toast('Copied')).catch(() => toast('Copy failed'));
 };
-$('note-open').onclick = () => { if (currentNote?.refined_path) invoke('open_path', { path: currentNote.refined_path }).catch(() => {}); };
+$('note-open').onclick = () => {
+  if (currentNote?.refined_path) invoke('open_path', { path: currentNote.refined_path }).catch(() => toast('Couldn’t open the file'));
+};
 $('note-type').onclick = async () => {
   if (!currentNote) return;
   // Dictation: type the plain transcript (strip "**Speaker:**" markers) into the
@@ -428,7 +501,10 @@ $('note-export').onclick = async () => {
   } catch (e) { toast('Export failed'); }
 };
 $('note-delete').onclick = async () => {
-  if (currentNote?.refined_path) { await invoke('delete_note', { refinedPath: currentNote.refined_path }).catch(() => {}); showView('history'); }
+  if (!currentNote?.refined_path) return;
+  // Only navigate away if the delete actually succeeded — don't pretend it's gone.
+  try { await invoke('delete_note', { refinedPath: currentNote.refined_path }); toast('Note deleted'); showView('history'); }
+  catch (e) { toast('Couldn’t delete the note'); }
 };
 const STYLES = ['adaptive', 'meeting', 'memo'];
 $('note-restyle').onclick = async () => {
@@ -444,9 +520,11 @@ listen('voz://event', (e) => {
   const p = e.payload || {};
   switch (p.type) {
     case 'recState':
-      if (p.state === 'Recording') enterRecording();
+      // `Recording` fires on both start and resume — resume keeps the session
+      // (and elapsed timer) and just restarts the meter; start sets up fresh.
+      if (p.state === 'Recording') recording ? resumeRecording() : enterRecording();
+      else if (p.state === 'Paused') pauseRecording();
       else if (p.state === 'Idle') leaveRecording();
-      else if (p.state === 'Paused') setPill('Paused');
       break;
     case 'partial': showPartial(p.text); break;
     case 'jobState':

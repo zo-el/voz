@@ -7,7 +7,7 @@
 //! source-of-truth guarantee from `docs/ARCHITECTURE.md`.
 
 use crate::model::{NoteMeta, RefineStyle, Source, Speaker, Transcript};
-use crate::refine::{build_input, lossless_check, Refiner};
+use crate::refine::{build_input, interpret_refined, lossless_check, Refiner};
 use crate::store::{note_basename, raw_basename, raw_note, refined_note};
 use crate::transcribe::Transcriber;
 
@@ -82,9 +82,6 @@ pub fn process(
 ) -> crate::Result<ProcessOutput> {
     // 1) Raw transcript — the source of truth — is built first.
     let transcript = transcribe_and_attribute(audio, transcriber)?;
-    let base = note_basename(&req.created_rfc3339, &req.title);
-    let raw_base = raw_basename(&base);
-    let raw_md = raw_note(&req.created_rfc3339, &transcript, &base);
 
     // 2) Refine (optional, fault-tolerant).
     let mut refined_body = String::new();
@@ -107,11 +104,17 @@ pub fn process(
         None => "None".to_string(),
     };
 
-    // 3) Build the refined note (falls back to the raw text if refine produced nothing).
-    let body_for_note = if refined_body.is_empty() {
-        transcript.plain_text()
+    // 3) Lift the refiner's `Title:` line + resolve the kind, then derive the name.
+    let refined = interpret_refined(&refined_body, &req.style, &req.title);
+    let base = note_basename(&req.created_rfc3339, &refined.kind, &refined.title);
+    let raw_base = raw_basename(&base);
+    let raw_md = raw_note(&req.created_rfc3339, &transcript, &base);
+
+    // 4) Build the refined note (falls back to the raw text if refine produced nothing).
+    let body_for_note = if refined.present {
+        refined.body.clone()
     } else {
-        refined_body.clone()
+        transcript.plain_text()
     };
     let meta = NoteMeta {
         created: req.created_rfc3339.clone(),
@@ -122,6 +125,8 @@ pub fn process(
         refine_backend: backend_name,
         lossless_ok,
         words: transcript.word_count(),
+        title: refined.title.clone(),
+        kind: refined.kind.clone(),
     };
     let refined_md = refined_note(&meta, &body_for_note, &raw_base);
 
@@ -222,13 +227,14 @@ mod tests {
         let out = process(&req(), &both_audio(), &SpeakerEcho, Some(&GoodRefiner)).unwrap();
         assert!(out.lossless_ok, "guard tripped unexpectedly");
         assert!(out.refine_error.is_none());
-        assert_eq!(out.base, "2026-06-05 14-07 Planning sync");
+        assert_eq!(out.base, "Fri 06-05 Note Planning sync");
         assert!(out.raw_md.contains("**Me:** ship 3 features by Friday"));
         assert!(out.refined_md.contains("## Summary"));
+        assert!(out.refined_md.contains("# Fri 06-05: Note: Planning sync"));
         assert!(out.refined_md.contains("refine: Mock"));
         assert!(out
             .refined_md
-            .contains("[[2026-06-05 14-07 Planning sync (raw)]]"));
+            .contains("[[Fri 06-05 Note Planning sync (raw)]]"));
     }
 
     #[test]

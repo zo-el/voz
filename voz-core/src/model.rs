@@ -134,9 +134,12 @@ impl RefineStyle {
         };
         format!(
             "You are turning a verbatim transcript into a clean, well-structured \
-             note. {shape} Preserve every concrete fact, number, name, date, and \
-             commitment — when in doubt, keep it. Do not invent anything not in \
-             the transcript. Organize and condense wording, but never drop \
+             note. Begin your reply with a single line in the exact form \
+             `Title: <a concise 4-8 word title for this note>` — plain text, no \
+             markdown or quotes — then a blank line, then the note. {shape} \
+             Preserve every concrete fact, number, name, date, and commitment — \
+             when in doubt, keep it. Do not invent anything not in the \
+             transcript. Organize and condense wording, but never drop \
              information; the verbatim transcript is kept separately as the \
              source of truth."
         )
@@ -155,6 +158,13 @@ pub struct NoteMeta {
     pub refine_backend: String,
     pub lossless_ok: bool,
     pub words: usize,
+    /// Concise human title for the note (refiner-generated, or derived from the
+    /// transcript when refine is unavailable). Drives the note's filename + header.
+    #[serde(default)]
+    pub title: String,
+    /// Kind label shown in the note header: `Meeting`, `Memo`, or `Note`.
+    #[serde(default)]
+    pub kind: String,
 }
 
 #[cfg(test)]

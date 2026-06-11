@@ -30,14 +30,82 @@ pub fn sanitize_filename(s: &str) -> String {
     }
 }
 
-/// Base note name: `YYYY-MM-DD HH-MM <title>` derived from an RFC3339 timestamp
-/// (`2026-06-05T14:07:11...`) plus a sanitized title.
+/// Abbreviated weekday (`Mon`…`Sun`) for a proleptic-Gregorian date, via
+/// Sakamoto's algorithm. Keeps the readable header dependency-free (no date
+/// parsing). Verified against known dates in the tests below.
+fn weekday_abbrev(y: i64, m: u32, d: u32) -> &'static str {
+    const T: [i64; 12] = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let yy = if m < 3 { y - 1 } else { y };
+    let idx = (yy + yy / 4 - yy / 100 + yy / 400 + T[(m - 1) as usize] + i64::from(d)).rem_euclid(7);
+    const NAMES: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    NAMES[idx as usize]
+}
+
+/// Readable date stamp `Wkd MM-DD` (e.g. `Mon 06-09`) from an RFC3339 timestamp.
+/// Uses the timestamp's own date (UTC — the instant the note records).
 #[must_use]
-pub fn note_basename(created_rfc3339: &str, title: &str) -> String {
-    let date = created_rfc3339.get(0..10).unwrap_or("0000-00-00");
-    let hh = created_rfc3339.get(11..13).unwrap_or("00");
-    let mm = created_rfc3339.get(14..16).unwrap_or("00");
-    format!("{date} {hh}-{mm} {}", sanitize_filename(title))
+pub fn readable_date(created_rfc3339: &str) -> String {
+    let num = |r: std::ops::Range<usize>| created_rfc3339.get(r).and_then(|s| s.parse::<i64>().ok());
+    match (num(0..4), num(5..7), num(8..10)) {
+        (Some(y), Some(mo), Some(d)) if (1..=12).contains(&mo) && (1..=31).contains(&d) => {
+            #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+            let wd = weekday_abbrev(y, mo as u32, d as u32);
+            format!("{wd} {mo:02}-{d:02}")
+        }
+        _ => "??? 00-00".to_string(),
+    }
+}
+
+/// Human-readable note header `Wkd MM-DD: Kind: Title` (e.g.
+/// `Mon 06-09: Meeting: Q3 Planning Sync`): rendered verbatim as the refined
+/// note's H1, and sanitized into the filename (where `:` is illegal).
+#[must_use]
+pub fn note_header(created_rfc3339: &str, kind: &str, title: &str) -> String {
+    format!("{}: {}: {}", readable_date(created_rfc3339), kind, title.trim())
+}
+
+/// Base note name: the readable header collapsed into a single, safe filename
+/// component (e.g. `Mon 06-09 Meeting Q3 Planning Sync`).
+#[must_use]
+pub fn note_basename(created_rfc3339: &str, kind: &str, title: &str) -> String {
+    sanitize_filename(&note_header(created_rfc3339, kind, title))
+}
+
+/// Resolve a non-colliding base under `save_dir`: returns `base` unchanged when
+/// no refined note of that name exists, else appends ` (2)`, ` (3)`, … A quiet
+/// safety net for the rare case of two notes sharing both a day and a title, so
+/// one never silently overwrites the other. This check-then-write is only safe
+/// against concurrent jobs because the engine holds a save gate across the
+/// choose-name → write step (see `engine::Engine::save_gate`).
+#[must_use]
+pub fn unique_basename(save_dir: &str, base: &str) -> String {
+    let dir = expand_tilde(save_dir);
+    let taken = |name: &str| dir.join(format!("{name}.md")).exists();
+    if !taken(base) {
+        return base.to_string();
+    }
+    (2..1000)
+        .map(|n| format!("{base} ({n})"))
+        .find(|cand| !taken(cand))
+        .unwrap_or_else(|| base.to_string())
+}
+
+/// Split a refiner-produced body into its leading `Title:` line (if present) and
+/// the remaining note. Backends are asked to begin with `Title: <title>`; we
+/// lift that out so it names the note rather than cluttering the body. Tolerates
+/// a `#`/`*`-decorated line and surrounding quotes.
+#[must_use]
+pub fn parse_title_line(body: &str) -> (Option<String>, String) {
+    let trimmed = body.trim_start();
+    let (first, rest) = trimmed.split_once('\n').unwrap_or((trimmed, ""));
+    let line = first.trim().trim_start_matches(['#', '*', ' ']);
+    if line.get(0..6).is_some_and(|k| k.eq_ignore_ascii_case("title:")) {
+        let title = line[6..].trim().trim_matches(['"', '*', ' ']).to_string();
+        if !title.is_empty() {
+            return (Some(title), rest.trim_start().to_string());
+        }
+    }
+    (None, body.to_string())
 }
 
 /// Name of the raw note for a given base name.
@@ -62,6 +130,7 @@ fn source_str(s: Source) -> &'static str {
 #[must_use]
 pub fn refined_note(meta: &NoteMeta, body: &str, raw_link_name: &str) -> String {
     let voices = yaml_list(&meta.voices);
+    let header = note_header(&meta.created, &meta.kind, &meta.title);
     format!(
         "---\n\
          created: {created}\n\
@@ -75,6 +144,7 @@ pub fn refined_note(meta: &NoteMeta, body: &str, raw_link_name: &str) -> String 
          raw: \"[[{raw}]]\"\n\
          tags: [voz]\n\
          ---\n\n\
+         # {header}\n\n\
          {body}\n\n\
          > Full transcript: [[{raw}]]\n",
         created = meta.created,
@@ -308,14 +378,62 @@ mod tests {
             refine_backend: "Claude Code".into(),
             lossless_ok: true,
             words: 1240,
+            title: "Planning sync".into(),
+            kind: "Meeting".into(),
         }
     }
 
     #[test]
-    fn basename_formats_date_time_and_title() {
-        let b = note_basename("2026-06-05T14:07:11Z", "Planning sync");
-        assert_eq!(b, "2026-06-05 14-07 Planning sync");
-        assert_eq!(raw_basename(&b), "2026-06-05 14-07 Planning sync (raw)");
+    fn weekday_matches_known_dates() {
+        // 2000-01-01 = Saturday, 2026-06-05 = Friday, 2026-06-09 = Tuesday.
+        assert_eq!(weekday_abbrev(2000, 1, 1), "Sat");
+        assert_eq!(weekday_abbrev(2026, 6, 5), "Fri");
+        assert_eq!(weekday_abbrev(2026, 6, 9), "Tue");
+    }
+
+    #[test]
+    fn readable_date_and_header_are_human_friendly() {
+        assert_eq!(readable_date("2026-06-09T23:00:00Z"), "Tue 06-09");
+        assert_eq!(readable_date("garbage"), "??? 00-00");
+        assert_eq!(
+            note_header("2026-06-09T08:00:00Z", "Meeting", "Q3 Planning Sync"),
+            "Tue 06-09: Meeting: Q3 Planning Sync"
+        );
+    }
+
+    #[test]
+    fn basename_is_readable_header_sanitized() {
+        // The colons from the header are illegal in filenames → collapsed to spaces.
+        let b = note_basename("2026-06-05T14:07:11Z", "Meeting", "Planning sync");
+        assert_eq!(b, "Fri 06-05 Meeting Planning sync");
+        assert_eq!(raw_basename(&b), "Fri 06-05 Meeting Planning sync (raw)");
+    }
+
+    #[test]
+    fn parse_title_line_lifts_leading_title() {
+        let (t, body) = parse_title_line("Title: Q3 Planning Sync\n\n## Summary\nDid things.");
+        assert_eq!(t.as_deref(), Some("Q3 Planning Sync"));
+        assert_eq!(body, "## Summary\nDid things.");
+        // Tolerates markdown/quote decoration.
+        let (t2, _) = parse_title_line("**Title:** \"Weekly Standup\"\nrest");
+        assert_eq!(t2.as_deref(), Some("Weekly Standup"));
+        // No title line → unchanged.
+        let (t3, body3) = parse_title_line("## Summary\njust notes");
+        assert!(t3.is_none());
+        assert_eq!(body3, "## Summary\njust notes");
+    }
+
+    #[test]
+    fn unique_basename_appends_counter_on_collision() {
+        let dir = std::env::temp_dir().join(format!("voz-uniq-{}", std::process::id()));
+        let dir_s = dir.to_str().unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(unique_basename(dir_s, "Note"), "Note");
+        std::fs::write(dir.join("Note.md"), "x").unwrap();
+        assert_eq!(unique_basename(dir_s, "Note"), "Note (2)");
+        std::fs::write(dir.join("Note (2).md"), "x").unwrap();
+        assert_eq!(unique_basename(dir_s, "Note"), "Note (3)");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -341,6 +459,7 @@ mod tests {
         assert!(md.contains("voices: [Me, Them]"));
         assert!(md.contains("lossless_ok: true"));
         assert!(md.contains("[[2026-06-05 14-07 Planning sync (raw)]]"));
+        assert!(md.contains("# Fri 06-05: Meeting: Planning sync"));
         assert!(md.contains("## Summary"));
     }
 

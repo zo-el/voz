@@ -23,7 +23,7 @@ use crate::transcribe::Transcriber;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// RFC3339 (UTC) timestamp for `created`.
@@ -47,6 +47,58 @@ pub fn derive_title(text: &str) -> String {
     }
 }
 
+/// A tiny counting semaphore that bounds how many jobs do the heavy
+/// transcribe/refine work *at once*. Every `Stop` still spawns a worker thread,
+/// but each thread waits here for a free slot before transcribing, so a burst of
+/// recordings can't launch unbounded concurrent Whisper runs. Waiters park on the
+/// condvar (cheap) rather than spinning.
+struct Slots {
+    free: Mutex<usize>,
+    cv: Condvar,
+}
+
+impl Slots {
+    fn new(n: usize) -> Self {
+        Slots {
+            free: Mutex::new(n.max(1)),
+            cv: Condvar::new(),
+        }
+    }
+
+    /// Block until a slot is free, then take it. The returned guard releases the
+    /// slot on drop, so it's freed on every exit path of the worker.
+    fn acquire(self: &Arc<Self>) -> SlotGuard {
+        let mut free = self.free.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        while *free == 0 {
+            free = self
+                .cv
+                .wait(free)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+        }
+        *free -= 1;
+        SlotGuard {
+            slots: Arc::clone(self),
+        }
+    }
+}
+
+/// Releases a worker slot back to the pool when dropped.
+struct SlotGuard {
+    slots: Arc<Slots>,
+}
+
+impl Drop for SlotGuard {
+    fn drop(&mut self) {
+        let mut free = self
+            .slots
+            .free
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *free += 1;
+        self.slots.cv.notify_one();
+    }
+}
+
 /// Everything a worker needs to process one recording (no live device handles).
 struct JobCtx {
     save_dir: String,
@@ -58,6 +110,10 @@ struct JobCtx {
     /// Spool id whose audio backs this job; cleared once the job fully succeeds so
     /// an interrupted job can be recovered on the next launch.
     spool_id: Option<String>,
+    /// Worker-slot pool gating concurrent transcribe/refine work.
+    slots: Arc<Slots>,
+    /// Serializes the choose-unique-name → save step (closes the naming TOCTOU).
+    save_gate: Arc<Mutex<()>>,
 }
 
 // ----- crash-recovery spool ---------------------------------------------------
@@ -231,6 +287,12 @@ fn process_job(
         emit(&events, Event::JobState { job, state: s });
     };
 
+    // Wait for a free worker slot before doing the heavy work, so a burst of
+    // recordings can't run unbounded concurrent transcriptions. The job stays
+    // `Queued` (visible in the tray) until a slot frees; the guard releases it on
+    // every exit path below.
+    let _slot = ctx.slots.acquire();
+
     // --- transcribe + attribute ---
     set_state(JobState::Transcribing);
     let transcript = match transcribe_and_attribute(&audio, transcriber.as_ref()) {
@@ -248,18 +310,25 @@ fn process_job(
         }
     };
     let created = now_rfc3339();
-    let title = derive_title(&transcript.plain_text());
-    let base = note_basename(&created, &title);
-    let raw_base = raw_basename(&base);
-    let raw_md = raw_note(&created, &transcript, &base);
+    // Provisional name from the transcript so the RAW transcript can be persisted
+    // *before* refine runs (the source-of-truth guarantee). The final, readable
+    // name depends on the refined title and is resolved once refine completes.
+    let prov_title = derive_title(&transcript.plain_text());
+    let prov_base = note_basename(&created, "Note", &prov_title);
+    let prov_raw_path = crate::store::expand_tilde(&ctx.save_dir)
+        .join("raw")
+        .join(format!("{}.md", raw_basename(&prov_base)));
 
     // --- persist RAW first (source of truth) ---
-    let refined_path = crate::store::expand_tilde(&ctx.save_dir).join(format!("{base}.md"));
+    // NOTE: the raw note is deliberately written twice — here under the provisional
+    // name (so the transcript is on disk *before* refine can crash), and again by
+    // `save_notes` below under the final readable name. Don't "optimize" this into a
+    // single post-refine write: that would reintroduce the window where a refine
+    // crash loses the transcript. The provisional copy is dropped after the final
+    // save succeeds (or kept on failure, where it's the surviving copy).
     if let Err(e) = crate::store::write_atomic(
-        &crate::store::expand_tilde(&ctx.save_dir)
-            .join("raw")
-            .join(format!("{raw_base}.md")),
-        &raw_md,
+        &prov_raw_path,
+        &raw_note(&created, &transcript, &prov_base),
     ) {
         set_state(JobState::Failed);
         emit(
@@ -281,15 +350,6 @@ fn process_job(
             text: transcript.clone(),
         },
     );
-
-    // keep audio (best-effort; never fails the job)
-    if ctx.keep_audio {
-        if let Some(mic) = &audio.mic {
-            let _ = write_wav_16k_mono(&audio_path(&ctx.save_dir, &base), mic);
-        } else if let Some(sys) = &audio.system {
-            let _ = write_wav_16k_mono(&audio_path(&ctx.save_dir, &base), sys);
-        }
-    }
 
     // --- refine (optional; unavailable backend or failure keeps the raw note) ---
     let refiner = if backend_available(&ctx.refine, ctx.api_key.is_some()) {
@@ -323,11 +383,39 @@ fn process_job(
         }
     }
 
-    let body_for_note = if refined_body.is_empty() {
-        transcript.plain_text()
+    // Lift the refiner's `Title:` line + resolve the kind; fall back to the
+    // transcript-derived title when refine produced nothing usable.
+    let refined = crate::refine::interpret_refined(&refined_body, &ctx.refine.style, &prov_title);
+
+    // Hold the save gate across choose-name → write so a concurrent job can't pick
+    // the same name between our existence check and write (the unique_basename TOCTOU).
+    let _save_guard = ctx
+        .save_gate
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    // Resolve the final, readable, collision-free name now that the title is known.
+    let base = crate::store::unique_basename(
+        &ctx.save_dir,
+        &note_basename(&created, &refined.kind, &refined.title),
+    );
+    let raw_base = raw_basename(&base);
+
+    // keep audio (best-effort; never fails the job) under the final name.
+    if ctx.keep_audio {
+        if let Some(mic) = &audio.mic {
+            let _ = write_wav_16k_mono(&audio_path(&ctx.save_dir, &base), mic);
+        } else if let Some(sys) = &audio.system {
+            let _ = write_wav_16k_mono(&audio_path(&ctx.save_dir, &base), sys);
+        }
+    }
+
+    let body_for_note = if refined.present {
+        refined.body.clone()
     } else {
-        refined_body.clone()
+        transcript.plain_text()
     };
+    let raw_md = raw_note(&created, &transcript, &base);
     let meta = NoteMeta {
         created,
         duration_secs,
@@ -337,6 +425,8 @@ fn process_job(
         refine_backend: backend_name,
         lossless_ok,
         words: transcript.word_count(),
+        title: refined.title.clone(),
+        kind: refined.kind.clone(),
     };
     let refined_md = refined_note(&meta, &body_for_note, &raw_base);
 
@@ -344,6 +434,14 @@ fn process_job(
         Ok(p) => p,
         Err(e) => {
             set_state(JobState::Failed);
+            // The transcript isn't lost: the spool is left in place, so the job
+            // re-runs from the spooled audio on next launch. With a spool present,
+            // the provisional raw is now redundant — drop it so a failed save
+            // doesn't leave an orphan (with a dangling refined link). Without a
+            // spool, keep it: it's the only persisted copy of the transcript.
+            if ctx.spool_id.is_some() {
+                let _ = std::fs::remove_file(&prov_raw_path);
+            }
             emit(
                 &events,
                 Event::JobFailed {
@@ -354,18 +452,22 @@ fn process_job(
             return;
         }
     };
+    // Finalization may have moved the raw note to a readable name — drop the
+    // provisional one written before refine (the transcript is now safe at `saved.raw`).
+    if saved.raw != prov_raw_path {
+        let _ = std::fs::remove_file(&prov_raw_path);
+    }
 
     // index in history (best-effort); store the raw transcript for content search
     if let Ok(h) = History::open(&ctx.history_path) {
         let _ = h.insert(
-            &title,
+            &refined.title,
             &meta,
             saved.refined.to_str().unwrap_or_default(),
             saved.raw.to_str().unwrap_or_default(),
             &transcript.plain_text(),
         );
     }
-    let _ = refined_path;
 
     // job fully succeeded — drop its recovery spool.
     if let Some(id) = &ctx.spool_id {
@@ -392,7 +494,7 @@ fn process_job(
     emit(
         &events,
         Event::Notify {
-            title: format!("Note ready: {title}"),
+            title: format!("Note ready: {}", refined.title),
             body: if lossless_ok {
                 "Saved".into()
             } else {
@@ -413,12 +515,21 @@ pub struct Engine {
     capturer: Option<Capturer>,
     /// Signal that stops the live-partials worker for the current recording.
     partials_stop: Option<Arc<AtomicBool>>,
+    /// Start of the current *active* (un-paused) recording span; `None` while paused.
     started: Option<Instant>,
+    /// Active recording time accumulated across earlier spans of this take (so the
+    /// stored duration excludes paused stretches).
+    recorded: Duration,
     started_source: Source,
     transcriber: Arc<dyn Transcriber>,
     history_path: PathBuf,
     api_key: Option<String>,
     events: Sender<Event>,
+    /// Bounds concurrent transcribe/refine work across all jobs.
+    slots: Arc<Slots>,
+    /// Serializes the choose-unique-name → save step so two concurrent jobs can't
+    /// both claim the same filename (closes the `unique_basename` TOCTOU).
+    save_gate: Arc<Mutex<()>>,
 }
 
 impl std::fmt::Debug for Engine {
@@ -443,10 +554,13 @@ impl Engine {
         Engine {
             settings,
             recorder: crate::recorder::Recorder::default(),
-            queue: Arc::new(Mutex::new(JobQueue::new(concurrency))),
+            queue: Arc::new(Mutex::new(JobQueue::new())),
+            slots: Arc::new(Slots::new(concurrency)),
+            save_gate: Arc::new(Mutex::new(())),
             capturer: None,
             partials_stop: None,
             started: None,
+            recorded: Duration::ZERO,
             started_source: Source::Both,
             transcriber,
             history_path,
@@ -506,16 +620,29 @@ impl Engine {
         self.partials_stop = Some(stop);
         self.capturer = Some(cap);
         self.started = Some(Instant::now());
+        self.recorded = Duration::ZERO;
         self.started_source = source;
         emit(&self.events, Event::RecState(self.recorder.state()));
         tray(&self.events, &self.queue, self.recorder.state());
         Ok(())
     }
 
+    /// Active recording time so far, excluding paused stretches.
+    fn active_elapsed(&self) -> Duration {
+        self.recorded + self.started.map_or(Duration::ZERO, |s| s.elapsed())
+    }
+
     /// # Errors
     /// Fails on an invalid transition.
     pub fn pause(&mut self) -> crate::Result<()> {
         self.recorder.pause()?;
+        // Bank the active span and actually stop capturing audio (drop the stream).
+        if let Some(s) = self.started.take() {
+            self.recorded += s.elapsed();
+        }
+        if let Some(c) = &self.capturer {
+            c.pause();
+        }
         emit(&self.events, Event::RecState(self.recorder.state()));
         Ok(())
     }
@@ -524,6 +651,10 @@ impl Engine {
     /// Fails on an invalid transition.
     pub fn resume(&mut self) -> crate::Result<()> {
         self.recorder.resume()?;
+        self.started = Some(Instant::now());
+        if let Some(c) = &self.capturer {
+            c.resume();
+        }
         emit(&self.events, Event::RecState(self.recorder.state()));
         Ok(())
     }
@@ -537,6 +668,7 @@ impl Engine {
         self.stop_partials();
         self.capturer.take(); // dropping stops the streams
         self.started = None;
+        self.recorded = Duration::ZERO;
         emit(&self.events, Event::RecState(self.recorder.state()));
         tray(&self.events, &self.queue, self.recorder.state());
         Ok(())
@@ -551,7 +683,9 @@ impl Engine {
     pub fn stop(&mut self) -> crate::Result<()> {
         self.recorder.stop()?;
         self.stop_partials();
-        let duration = self.started.take().map_or(0, |t| t.elapsed().as_secs());
+        let duration = self.active_elapsed().as_secs();
+        self.started = None;
+        self.recorded = Duration::ZERO;
         let audio = self.capturer.take().map(Capturer::stop).unwrap_or_default();
         let source = self.started_source;
         emit(&self.events, Event::RecState(self.recorder.state()));
@@ -623,6 +757,8 @@ impl Engine {
             model_label: format!("whisper {}", self.settings.transcription.model),
             history_path: self.history_path.clone(),
             spool_id,
+            slots: Arc::clone(&self.slots),
+            save_gate: Arc::clone(&self.save_gate),
         };
         let (tx, q, t) = (
             self.events.clone(),
@@ -697,11 +833,30 @@ mod tests {
     }
 
     #[test]
+    fn slots_bound_concurrency() {
+        // One slot: a second acquirer must block until the first is released.
+        let slots = Arc::new(Slots::new(1));
+        let held = slots.acquire();
+        let (tx, rx) = channel();
+        let s2 = Arc::clone(&slots);
+        let waiter = std::thread::spawn(move || {
+            let _g = s2.acquire(); // blocks while `held` is alive
+            let _ = tx.send(());
+        });
+        // While the only slot is held, the waiter cannot have proceeded.
+        assert!(rx.try_recv().is_err());
+        drop(held); // free the slot
+        rx.recv_timeout(std::time::Duration::from_secs(2))
+            .expect("waiter should acquire the slot once it's freed");
+        waiter.join().unwrap();
+    }
+
+    #[test]
     fn process_job_saves_raw_first_then_refined_and_indexes() {
         let dir = std::env::temp_dir().join(format!("voz-engine-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let (tx, rx) = channel();
-        let queue = Arc::new(Mutex::new(JobQueue::new(2)));
+        let queue = Arc::new(Mutex::new(JobQueue::new()));
         let job = queue.lock().unwrap().enqueue(Source::Mic);
         let ctx = JobCtx {
             save_dir: dir.to_str().unwrap().to_string(),
@@ -716,6 +871,8 @@ mod tests {
             model_label: "mock".into(),
             history_path: dir.join("history.sqlite"),
             spool_id: None,
+            slots: Arc::new(Slots::new(1)),
+            save_gate: Arc::new(Mutex::new(())),
         };
         let audio = CapturedAudio {
             mic: Some(vec![0.0; 4]),

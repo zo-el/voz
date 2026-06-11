@@ -255,16 +255,22 @@ fn parse_style(s: &str) -> voz_core::model::RefineStyle {
 fn read_note(refined_path: String) -> Result<serde_json::Value, String> {
     let h = History::open(&History::default_path()).map_err(err)?;
     let rec = h.get_by_refined(&refined_path).map_err(err)?;
-    let refined_md = std::fs::read_to_string(&refined_path).unwrap_or_default();
     let raw_path = rec.as_ref().map(|r| r.raw_path.clone()).unwrap_or_default();
-    let raw_md = std::fs::read_to_string(&raw_path).unwrap_or_default();
+    // A note file the user moved/deleted outside Voz shows an honest placeholder
+    // rather than a silently blank pane.
+    const MISSING: &str =
+        "⚠ This note's file could not be read — it may have been moved or deleted outside Voz.";
+    let read = |path: &str| match std::fs::read_to_string(path) {
+        Ok(md) => voz_core::store::strip_frontmatter(&md).to_string(),
+        Err(_) => MISSING.to_string(),
+    };
     Ok(serde_json::json!({
         "title": rec.as_ref().map(|r| r.title.clone()).unwrap_or_default(),
         "backend": rec.as_ref().map(|r| r.refine_backend.clone()).unwrap_or_default(),
         "voices": rec.as_ref().map(|r| r.voices.clone()).unwrap_or_default(),
         "lossless_ok": rec.as_ref().is_none_or(|r| r.lossless_ok),
-        "refined": voz_core::store::strip_frontmatter(&refined_md),
-        "raw": voz_core::store::strip_frontmatter(&raw_md),
+        "refined": read(&refined_path),
+        "raw": read(&raw_path),
         "raw_path": raw_path,
     }))
 }
@@ -277,6 +283,11 @@ fn delete_note(refined_path: String) -> Result<(), String> {
         let _ = std::fs::remove_file(&rec.raw_path);
     }
     let _ = std::fs::remove_file(&refined_path);
+    // Also drop the kept audio (if "keep audio" was on): <save_dir>/audio/<base>.wav.
+    let p = std::path::Path::new(&refined_path);
+    if let (Some(dir), Some(stem)) = (p.parent(), p.file_stem().and_then(|s| s.to_str())) {
+        let _ = std::fs::remove_file(dir.join("audio").join(format!("{stem}.wav")));
+    }
     h.delete_by_refined(&refined_path).map_err(err)?;
     Ok(())
 }
@@ -324,6 +335,16 @@ fn rerefine(
             }
             None => (transcript.plain_text(), "None".to_string(), true),
         };
+        // Interpret the backend's output with the same helper the engine uses
+        // (lifts the `Title:` line, strips it, resolves the kind). Re-refine keeps
+        // the note's existing file name → reuse the stored title; and a raw-only
+        // re-refine (no backend ran) is always a plain "Note".
+        let refined = voz_core::refine::interpret_refined(&body, &rstyle, &rec.title);
+        let kind = if backend == "None" {
+            "Note".to_string()
+        } else {
+            refined.kind
+        };
         let meta = voz_core::NoteMeta {
             created: rec.created.clone(),
             duration_secs: rec.duration_secs as u64,
@@ -333,8 +354,10 @@ fn rerefine(
             refine_backend: backend,
             lossless_ok: lossless,
             words: transcript.word_count(),
+            title: rec.title.clone(),
+            kind,
         };
-        let refined_md = voz_core::store::refined_note(&meta, &body, &raw_link);
+        let refined_md = voz_core::store::refined_note(&meta, &refined.body, &raw_link);
         let _ = voz_core::store::write_atomic(std::path::Path::new(&refined_path), &refined_md);
         if let Ok(h) = History::open(&History::default_path()) {
             let _ = h.insert(

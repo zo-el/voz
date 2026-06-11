@@ -5,6 +5,39 @@ All notable changes to Voz. Format: [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+### Added
+- **Resume from the UI.** The pause button now toggles ⏸/▶ and actually resumes a
+  paused recording; the paused state is clearly marked (amber pill + frozen, amber
+  waveform) so it no longer looks like it's still recording.
+
+### Changed
+- **Readable note names + header.** Notes are now named by the recording day, the
+  refine style, and a refiner-generated title (`Wkd MM-DD Kind Title`, e.g.
+  `Mon 06-09 Meeting Q3 Planning Sync`) instead of `YYYY-MM-DD HH-MM <first words>`,
+  and each refined note opens with a matching `# Mon 06-09: Meeting: Q3 Planning Sync`
+  header. The title falls back to the transcript's opening words when AI cleanup is
+  unavailable; a same-day, same-title clash gets a quiet ` (2)` suffix rather than
+  overwriting.
+- **The live waveform now reflects the real input level** — flat in silence, lively
+  for speech, filling up for loud sound — instead of a constant wiggle.
+
+### Fixed
+- **Pause now actually pauses recording.** Previously it only froze the UI while the
+  microphone kept recording; audio captured while paused is now dropped, and the
+  saved note's duration excludes paused time.
+- **Idle CPU usage.** A leaked level-meter interval (triggered by pause→resume) kept
+  animating the waveform forever, pegging a CPU core while the app sat idle.
+- **Bounded background processing.** A burst of recordings no longer launches
+  unbounded concurrent transcriptions; the worker-slot cap is now enforced.
+- **No crash importing a malformed audio file** (a WAV reporting a 0 Hz sample rate).
+- **Delete** now also removes the kept audio file and reports success/failure instead
+  of silently navigating away.
+- **Opening a note whose file was moved/deleted** shows a clear message instead of a
+  blank pane.
+- **History search** treats `%` and `_` literally instead of as wildcards.
+- **A corrupt settings file** is now logged (with the backup path) instead of being
+  silently reset to defaults.
+
 ## [0.4.0] — 2026-06-08
 
 The first complete, broadly-compatible release on top of 0.1.0 — the full feature

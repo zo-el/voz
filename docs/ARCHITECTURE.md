@@ -272,9 +272,9 @@ vault is a first-class target.
 ~/.local/share/voz/history.sqlite  # index of recordings (fast search)
 
 <save_dir>/                        # user-chosen, default an Obsidian vault e.g. ~/Obsidian/Vault/Voz/
-  2026-06-05 Planning sync.md            # REFINED note (front-matter + notes + [[raw]] link)
-  raw/2026-06-05 Planning sync (raw).md  # RAW verbatim transcript (source of truth)
-  audio/2026-06-05 Planning sync.wav     # audio (if "keep audio" on)
+  Fri 06-05 Meeting Planning sync.md            # REFINED note (front-matter + header + notes + [[raw]] link)
+  raw/Fri 06-05 Meeting Planning sync (raw).md  # RAW verbatim transcript (source of truth)
+  audio/Fri 06-05 Meeting Planning sync.wav     # audio (if "keep audio" on)
 ```
 
 Refined note (`.md`) — what you read in Obsidian:
@@ -288,9 +288,11 @@ voices: [Me, Alex]
 model: whisper large-v3-turbo q5_0
 refine: Claude Code
 lossless_ok: true
-raw: "[[2026-06-05 Planning sync (raw)]]"
+raw: "[[Fri 06-05 Meeting Planning sync (raw)]]"
 tags: [voz, meeting]
 ---
+
+# Fri 06-05: Meeting: Planning sync
 
 ## Summary
 Reviewed next-week priorities. Ship the settings panel first, then wire up the
@@ -304,15 +306,19 @@ local model picker; diarization deprioritised.
 - **Me** — build the settings panel
 - **Alex** — scope the model-picker work
 
-> Full transcript: [[2026-06-05 Planning sync (raw)]]
+> Full transcript: [[Fri 06-05 Meeting Planning sync (raw)]]
 ```
+
+The note's filename and H1 header are built from the recording day, the refine
+style, and a refiner-supplied **Title:** line (`Wkd MM-DD[: Kind]: Title`); when
+refine is unavailable the title falls back to the transcript's opening words.
 
 Raw note (`(raw).md`) — speaker-attributed verbatim, the ground truth:
 
 ```markdown
 ---
 created: 2026-06-05T14:07:11
-refined: "[[2026-06-05 Planning sync]]"
+refined: "[[Fri 06-05 Meeting Planning sync]]"
 ---
 
 **Me:** so the plan for next week is to ship the settings panel first and then …

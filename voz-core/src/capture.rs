@@ -18,6 +18,7 @@ use crate::model::Source;
 use crate::pipeline::CapturedAudio;
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -44,6 +45,10 @@ struct StreamCapture {
     child: Child,
     buf: Arc<Mutex<Vec<f32>>>,
     level: Arc<Mutex<f32>>,
+    /// When set, the reader keeps draining the pipe but **drops** the samples, so
+    /// a paused recording captures nothing (a clean cut in the buffer) without the
+    /// subprocess's pipe filling up and blocking.
+    paused: Arc<AtomicBool>,
     reader: Option<JoinHandle<()>>,
 }
 
@@ -66,7 +71,8 @@ impl StreamCapture {
 
         let buf = Arc::new(Mutex::new(Vec::<f32>::new()));
         let level = Arc::new(Mutex::new(0.0_f32));
-        let (buf_w, level_w) = (Arc::clone(&buf), Arc::clone(&level));
+        let paused = Arc::new(AtomicBool::new(false));
+        let (buf_w, level_w, paused_r) = (Arc::clone(&buf), Arc::clone(&level), Arc::clone(&paused));
 
         let reader = std::thread::spawn(move || {
             let mut leftover: Vec<u8> = Vec::new();
@@ -74,6 +80,7 @@ impl StreamCapture {
             loop {
                 match stdout.read(&mut chunk) {
                     Ok(0) | Err(_) => break,
+                    Ok(_) if paused_r.load(Ordering::Relaxed) => continue, // drop while paused
                     Ok(n) => {
                         leftover.extend_from_slice(&chunk[..n]);
                         let usable = leftover.len() - (leftover.len() % 4);
@@ -99,12 +106,24 @@ impl StreamCapture {
             child,
             buf,
             level,
+            paused,
             reader: Some(reader),
         })
     }
 
     fn level(&self) -> f32 {
         self.level.lock().map(|g| *g).unwrap_or(0.0)
+    }
+
+    /// Pause/resume capture. While paused the reader drops samples; the level is
+    /// zeroed so the meter doesn't show a stale value.
+    fn set_paused(&self, paused: bool) {
+        self.paused.store(paused, Ordering::Relaxed);
+        if paused {
+            if let Ok(mut l) = self.level.lock() {
+                *l = 0.0;
+            }
+        }
     }
 
     fn buf_handle(&self) -> Arc<Mutex<Vec<f32>>> {
@@ -168,6 +187,21 @@ impl Capturer {
             None
         };
         Ok(Self { mic, system })
+    }
+
+    /// Pause both streams: capture continues to drain but its samples are dropped,
+    /// so the recording has a clean cut and resumes cleanly (no paused audio kept).
+    pub fn pause(&self) {
+        for s in [self.mic.as_ref(), self.system.as_ref()].into_iter().flatten() {
+            s.set_paused(true);
+        }
+    }
+
+    /// Resume both streams after a [`Capturer::pause`].
+    pub fn resume(&self) {
+        for s in [self.mic.as_ref(), self.system.as_ref()].into_iter().flatten() {
+            s.set_paused(false);
+        }
     }
 
     /// Current per-source RMS level for the live waveform.

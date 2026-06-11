@@ -32,6 +32,7 @@ engine = ["audio", "refine", "history", "dep:time"]
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 thiserror = "2"
+log = "0.4"
 hound = { version = "3", optional = true }
 whisper-rs = { version = "0.16.0", optional = true }
 sha2 = { version = "0.10.9", optional = true }
