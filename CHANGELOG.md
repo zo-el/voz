@@ -5,6 +5,8 @@ All notable changes to Voz. Format: [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-10
+
 ### Added
 - **Resume from the UI.** The pause button now toggles ⏸/▶ and actually resumes a
   paused recording; the paused state is clearly marked (amber pill + frozen, amber
